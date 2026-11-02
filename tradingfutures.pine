@@ -167,7 +167,7 @@ if barstate.islast
         label.set_x(ny_lbl, time_offset)
 
 if i_showNy and show_draws
-    nmid = time("1", '0000-0001:1234567', "GMT-4")
+    nmid = time("1", '0000-0001:1234567', "America/New_York")
     var float openprice = 0.0
     if not na(nmid)
         openprice := na(nmid[1]) ? open : math.max(open, openprice)
