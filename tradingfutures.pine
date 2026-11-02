@@ -167,19 +167,17 @@ if barstate.islast
         label.set_x(ny_lbl, time_offset)
 
 if i_showNy and show_draws
-    ny_h = hour(time, "America/New_York")
-    ny_m = minute(time, "America/New_York")
-    ny_d = dayofmonth(time, "America/New_York")
-    is_midnight = (ny_h == 0 and ny_m == 0) or (ta.change(ny_d) and ny_h == 0)
-    var float openprice = na
-    if is_midnight and not is_midnight[1]
-        openprice := open
-        line.new(time, openprice, time + 86400000, openprice, xloc.bar_time, extend.none, #0064ff, line.style_dotted, 2)
-        label.set_y(ny_lbl, openprice)
-        label.set_text(ny_lbl, "NY Midnight Open | " + str.tostring(math.round_to_mintick(openprice)))
-        label.set_textcolor(ny_lbl, #0098ff)
-        label.set_size(ny_lbl, size.tiny)
-        line.new(time, high, time, low, xloc.bar_time, extend.both, #00b9d0, line.style_solid, 1)
+    nmid = time("1", '0000-0001:1234567', "America/New_York")
+    var float openprice = 0.0
+    if not na(nmid)
+        openprice := na(nmid[1]) ? open : math.max(open, openprice)
+    if openprice != openprice[1]
+        line.new(nmid, openprice, nmid + 86400000, openprice, xloc.bar_time, extend.none, #0064ff, line.style_dotted, 2).set_extend(extend.none)
+        label.set_y(ny_lbl, openprice), label.set_text(ny_lbl, "NY Midnight Open | " + str.tostring(math.round_to_mintick(openprice))), label.set_textcolor(ny_lbl, #0098ff), label.set_size(ny_lbl, size.tiny)
+    if not na(nmid)
+        vl1 = line.new(nmid, high, nmid, low, xloc.bar_time, extend.both, #00b9d0, line.style_solid, 1)
+        if line.get_y1(vl1) == line.get_y2(vl1)
+            line.delete(vl1)
 
 
 // --- SMA & EMA Polyline Drawing Engine (Infinite history without dots) ---
