@@ -241,8 +241,8 @@ int bias_score = 0
 string tip_6pm = ""
 string tip_ny = ""
 string tip_ndog = ""
-string tip_ema = ""
-string tip_sma = ""
+string tip_h1_ema = ""
+string tip_h1_sma = ""
 
 if not na(d_open)
     bool is_b = close >= d_open
@@ -262,16 +262,17 @@ if not na(active_ndog_ce)
 if not na(h1_ema)
     bool is_b = close >= h1_ema
     bias_score += (is_b ? 1 : -1)
-    tip_ema := "• 1H " + str.tostring(i_emaLen) + " EMA (" + str.tostring(math.round_to_mintick(h1_ema)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+    tip_h1_ema := "• 1H " + str.tostring(i_emaLen) + " EMA (" + str.tostring(math.round_to_mintick(h1_ema)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
 
 if not na(h1_sma)
     bool is_b = close >= h1_sma
     bias_score += (is_b ? 1 : -1)
-    tip_sma := "• 1H " + str.tostring(i_smaLen) + " SMA (" + str.tostring(math.round_to_mintick(h1_sma)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+    string cross_info = not na(h1_ema) ? (h1_ema >= h1_sma ? " | Golden Cross" : " | Death Cross") : ""
+    tip_h1_sma := "• 1H " + str.tostring(i_smaLen) + " SMA (" + str.tostring(math.round_to_mintick(h1_sma)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)") + cross_info
 
 string b_text = bias_score > 0 ? "▲ BULLISH" : bias_score < 0 ? "▼ BEARISH" : "⬌ NEUTRAL"
 color b_color = bias_score > 0 ? color.new(#089981, 0) : bias_score < 0 ? color.new(#f23645, 0) : color.new(#5d606b, 0)
-string b_tip  = "Market Sentiment: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/5)\n" + tip_6pm + "\n" + tip_ny + "\n" + tip_ndog + "\n" + tip_ema + "\n" + tip_sma
+string b_tip  = "Market Sentiment: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/5)\n" + tip_6pm + "\n" + tip_ny + "\n" + tip_ndog + "\n" + tip_h1_ema + "\n" + tip_h1_sma
 
 if barstate.islast
     if i_showBias
