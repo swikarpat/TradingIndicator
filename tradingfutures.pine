@@ -44,6 +44,7 @@ grp_ndog = "NDOG Settings", i_showNdog = input.bool(true,"Show NDOG",group=grp_n
 grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",group=grp_gen)
 grp_rthg = "RTHG Settings", i_showRthg = input.bool(true,"Show Regular Trading Hours Gap",group=grp_rthg), i_rthgCount = input.int(6,"How many RTH gaps to show",minval=1,group=grp_rthg), i_rthgLines = input.string("CE","Show RTH Gap Lines",options=["None","CE","Quadrant"],group=grp_rthg), i_rthgColor = input.color(color.new(#00b9d0,90),"RTH Gap color",group=grp_rthg), i_rthgTxtColor = input.color(#008f9c,"Text Color",inline="rthg_t",group=grp_rthg), i_rthgText = input.string("RTHG","Label",inline="rthg_t",group=grp_rthg), i_rthgTxtSize = input.string("tiny","Size",options=["tiny","small","normal","large"],inline="rthg_t",group=grp_rthg), i_rthgBorderCol = input.color(#00b9d0,"RTHG Border Color",inline="rthg_b",group=grp_rthg), i_rthgBorderStyle = input.string("solid (—)","Style",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_b",group=grp_rthg), i_rthgBorderWidth = input.int(0,"Width",minval=0,inline="rthg_b",group=grp_rthg), i_rthgLineCol = input.color(#00b9d0,"RTHG Lines color",inline="rthg_l",group=grp_rthg), i_rthgLineStyle = input.string("dashed (---)","Style",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_l",group=grp_rthg), i_rthgLineWidth = input.int(1,"Width",minval=1,inline="rthg_l",group=grp_rthg), i_rthSess = input.session("0930-1615","Market Hours (EST)",group=grp_rthg,tooltip="RTH session hours in EST/EDT")
 grp_ny = "NY Midnight Open Settings", i_showNy = input.bool(true,"Show NY Midnight Open",group=grp_ny)
+grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias)
 
 // --- HTF Data Fetchers ---
 f_fetch_htf_gaps(int count) =>
@@ -75,6 +76,8 @@ f_fetch_rth_arrays() =>
 [w_tops, w_btms, w_tms, w_bulls] = request.security(syminfo.tickerid, "W", f_fetch_htf_gaps(10))
 [d_tops, d_btms, d_tms, d_bulls] = request.security(syminfo.tickerid, "D", f_fetch_htf_gaps(10))
 [r_tops, r_btms, r_tms]          = request.security(syminfo.tickerid, "15", f_fetch_rth_arrays())
+d_open                           = request.security(syminfo.tickerid, "D", open)
+[h1_ema, h1_close]               = request.security(syminfo.tickerid, "60", [ta.ema(close, 50), close])
 
 // --- GAP Engine ---
 show_draws = not timeframe.isdwm // Master switch: Hides drawings on D, W, M timeframes
@@ -166,11 +169,12 @@ if barstate.islast
     if i_showNy and show_draws
         label.set_x(ny_lbl, time_offset)
 
+nmid = time("1", '0000-0001:1234567', "America/New_York")
+var float openprice = 0.0
+if not na(nmid)
+    openprice := na(nmid[1]) ? open : math.max(open, openprice)
+
 if i_showNy and show_draws
-    nmid = time("1", '0000-0001:1234567', "America/New_York")
-    var float openprice = 0.0
-    if not na(nmid)
-        openprice := na(nmid[1]) ? open : math.max(open, openprice)
     if openprice != openprice[1]
         line.new(nmid, openprice, nmid + 86400000, openprice, xloc.bar_time, extend.none, #0064ff, line.style_dotted, 2).set_extend(extend.none)
         label.set_y(ny_lbl, openprice), label.set_text(ny_lbl, "NY Midnight Open | " + str.tostring(math.round_to_mintick(openprice))), label.set_textcolor(ny_lbl, #0098ff), label.set_size(ny_lbl, size.tiny)
@@ -226,3 +230,46 @@ if barstate.islast and i_showMas
 // Bring back the Price Scale labels using ghost plots!
 plot(i_showMas ? sma_out : na, title="SMA", color=i_smaColor, display=display.price_scale)
 plot(i_showMas ? ema_out : na, title="EMA", color=i_emaColor, display=display.price_scale)
+
+// --- Market Sentiment Banner Engine ---
+tbl_pos = i_biasPos == "Top Left" ? position.top_left : i_biasPos == "Bottom Right" ? position.bottom_right : i_biasPos == "Bottom Left" ? position.bottom_left : position.top_right
+var table bias_tbl = table.new(tbl_pos, 1, 1, bgcolor=color(na), border_width=0)
+
+float active_ndog_ce = array.size(d_tops) > 0 ? math.avg(array.get(d_tops, 0), array.get(d_btms, 0)) : na
+
+int bias_score = 0
+string tip_6pm = ""
+string tip_ny = ""
+string tip_ndog = ""
+string tip_h1 = ""
+
+if not na(d_open)
+    bool is_b = close >= d_open
+    bias_score += (is_b ? 1 : -1)
+    tip_6pm := "• Globex 6PM Open (" + str.tostring(math.round_to_mintick(d_open)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+
+if not na(openprice) and openprice > 0
+    bool is_b = close >= openprice
+    bias_score += (is_b ? 1 : -1)
+    tip_ny := "• NY Midnight Open (" + str.tostring(math.round_to_mintick(openprice)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+
+if not na(active_ndog_ce)
+    bool is_b = close >= active_ndog_ce
+    bias_score += (is_b ? 1 : -1)
+    tip_ndog := "• Active NDOG CE (" + str.tostring(math.round_to_mintick(active_ndog_ce)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+
+if not na(h1_ema)
+    bool is_b = close >= h1_ema
+    bias_score += (is_b ? 1 : -1)
+    tip_h1 := "• 1H 50 EMA (" + str.tostring(math.round_to_mintick(h1_ema)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+
+string b_text = bias_score > 0 ? "▲ BULLISH" : bias_score < 0 ? "▼ BEARISH" : "⬌ NEUTRAL"
+color b_color = bias_score > 0 ? color.new(#089981, 0) : bias_score < 0 ? color.new(#f23645, 0) : color.new(#5d606b, 0)
+string b_tip  = "Market Sentiment: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/4)\n" + tip_6pm + "\n" + tip_ny + "\n" + tip_ndog + "\n" + tip_h1
+
+if barstate.islast
+    if i_showBias
+        table.cell(bias_tbl, 0, 0, b_text, text_color=color.white, text_size=f_get_size(i_biasSize), bgcolor=b_color, tooltip=b_tip)
+    else
+        table.clear(bias_tbl, 0, 0)
+
