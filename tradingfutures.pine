@@ -1,5 +1,5 @@
 // This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
-// ICT NWOG/NDOG & ICT NY Midnight Open, ICT RTH Gap 
+// ICT NWOG/NDOG & ICT NY Midnight Open, ICT RTH Gap
 // © SwikarP
 
 //@version=6
@@ -183,7 +183,6 @@ if i_showNy and show_draws
         if line.get_y1(vl1) == line.get_y2(vl1)
             line.delete(vl1)
 
-
 // --- SMA & EMA Polyline Drawing Engine (Infinite history without dots) ---
 sma_out = ta.sma(close, i_smaLen)
 ema_out = ta.ema(close, i_emaLen)
@@ -223,7 +222,7 @@ if barstate.islast and i_showMas
     for p in ema_polys
         polyline.delete(p)
     ema_polys.clear()
-    
+
     f_draw_poly(sma_pts, i_smaColor, sma_polys)
     f_draw_poly(ema_pts, i_emaColor, ema_polys)
 
@@ -270,7 +269,7 @@ if not na(h1_sma)
     string cross_info = not na(h1_ema) ? (h1_ema >= h1_sma ? " | Golden Cross" : " | Death Cross") : ""
     tip_h1_sma := "• 1H " + str.tostring(i_smaLen) + " SMA (" + str.tostring(math.round_to_mintick(h1_sma)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)") + cross_info
 
-string b_text = bias_score > 0 ? "▲ BULLISH" : bias_score < 0 ? "▼ BEARISH" : "⬌ NEUTRAL"
+string b_text = bias_score > 0 ? "BULLISH" : bias_score < 0 ? "BEARISH" : "NEUTRAL"
 color b_color = bias_score > 0 ? color.new(#089981, 0) : bias_score < 0 ? color.new(#f23645, 0) : color.new(#5d606b, 0)
 string b_tip  = "Market Sentiment: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/5)\n" + tip_6pm + "\n" + tip_ny + "\n" + tip_ndog + "\n" + tip_h1_ema + "\n" + tip_h1_sma
 
