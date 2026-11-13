@@ -44,7 +44,7 @@ grp_ndog = "NDOG Settings", i_showNdog = input.bool(true,"Show NDOG",group=grp_n
 grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",group=grp_gen)
 grp_rthg = "RTHG Settings", i_showRthg = input.bool(true,"Show Regular Trading Hours Gap",group=grp_rthg), i_rthgCount = input.int(6,"How many RTH gaps to show",minval=1,group=grp_rthg), i_rthgLines = input.string("CE","Show RTH Gap Lines",options=["None","CE","Quadrant"],group=grp_rthg), i_rthgColor = input.color(color.new(#00b9d0,90),"RTH Gap color",group=grp_rthg), i_rthgTxtColor = input.color(#008f9c,"Text",inline="rthg_t",group=grp_rthg), i_rthgText = input.string("RTHG","",inline="rthg_t",group=grp_rthg), i_rthgTxtSize = input.string("tiny","",options=["tiny","small","normal","large"],inline="rthg_t",group=grp_rthg), i_rthgBorderCol = input.color(#00b9d0,"Border",inline="rthg_b",group=grp_rthg), i_rthgBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_b",group=grp_rthg), i_rthgBorderWidth = input.int(0,"",minval=0,inline="rthg_b",group=grp_rthg), i_rthgLineCol = input.color(#00b9d0,"Lines",inline="rthg_l",group=grp_rthg), i_rthgLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_l",group=grp_rthg), i_rthgLineWidth = input.int(1,"",minval=1,inline="rthg_l",group=grp_rthg), i_rthSess = input.session("0930-1615","Market Hours (EST)",group=grp_rthg,tooltip="RTH session hours in EST/EDT")
 grp_ny = "NY Midnight Open Settings", i_showNy = input.bool(true,"Show NY Midnight Open",group=grp_ny)
-grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop Default", "Vertical Spacing", options=["Desktop Default", "iPhone / Mobile (+1 Row)", "iPhone / Mobile (+2 Rows)"], group=grp_bias, tooltip="Select 'iPhone / Mobile' to push the badge down below the mobile header."), i_biasTrans = input.int(15, "Badge Transparency %", minval=0, maxval=90, group=grp_bias, tooltip="Adjust opacity of badge on chart (0% = solid, 50% = semi-transparent).")
+grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop Default", "Vertical Spacing", options=["Desktop Default", "iPhone / Mobile (+1 Row)", "iPhone / Mobile (+2 Rows)"], group=grp_bias, tooltip="Select 'iPhone / Mobile' to push the badge down below the mobile header."), i_biasTrans = input.int(15, "Badge Transparency %", minval=0, maxval=90, group=grp_bias, tooltip="Adjust opacity of badge on chart (0% = solid, 50% = semi-transparent)."), i_badgeStyle = input.string("Compact Pill", "Badge Style", options=["Compact Pill", "Pill + Subtitle (Mobile Friendly)", "Full Details Card (Mobile Friendly)"], group=grp_bias, tooltip="On iPhone/mobile where tooltips cannot be touched, choose 'Pill + Subtitle' or 'Full Details Card' to see analytics directly on the chart."), i_showScore = input.bool(true, "Show Score on Badge (e.g. +5/7)", group=grp_bias, tooltip="Display the numerical score directly on the badge.")
 
 // --- HTF Data Fetchers ---
 f_fetch_htf_gaps(int count) =>
@@ -234,7 +234,7 @@ plot(i_showMas ? ema_out : na, title="EMA", color=i_emaColor, display=display.pr
 
 // --- Market Sentiment Banner Engine ---
 tbl_pos = i_biasPos == "Top Left" ? position.top_left : i_biasPos == "Bottom Right" ? position.bottom_right : i_biasPos == "Bottom Left" ? position.bottom_left : position.top_right
-var table bias_tbl = table.new(tbl_pos, 1, 3, bgcolor=color(na), border_width=0)
+var table bias_tbl = table.new(tbl_pos, 1, 8, bgcolor=color(na), border_width=0)
 
 float active_ndog_ce = array.size(d_tops) > 0 ? math.avg(array.get(d_tops, 0), array.get(d_btms, 0)) : na
 
@@ -311,8 +311,42 @@ else
     safety_note := "⚖️ Normal: Mean-reversion safe"
 
 string b_text = bias_score > 0 ? "BULLISH" : bias_score < 0 ? "BEARISH" : "NEUTRAL"
+string score_tag = i_showScore ? " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/7)" : ""
+string pill_title = b_text + score_tag
 color base_b_color = bias_score > 0 ? #089981 : bias_score < 0 ? #f23645 : #5d606b
 color b_color = color.new(base_b_color, i_biasTrans)
+
+// Mobile short indicators
+string regime_short = "Neutral"
+if not na(m15_adx)
+    if m15_adx >= 25
+        regime_short := "Trend (" + str.tostring(math.round(m15_adx, 1)) + ")"
+    else if m15_adx < 20
+        regime_short := "Mean-Rev (" + str.tostring(math.round(m15_adx, 1)) + ")"
+    else
+        regime_short := "Transition (" + str.tostring(math.round(m15_adx, 1)) + ")"
+
+string safety_short = "⚖️ Safe"
+if not na(m15_adx) and m15_adx >= 25 and bias_score >= 4
+    safety_short := "🛑 Trend Risk!"
+else if not na(m15_ema) and close < m15_ema and not na(openprice) and close >= openprice
+    safety_short := "🟢 Short Crack"
+else if bias_score <= -4
+    safety_short := "📉 Heavy Sell"
+else
+    safety_short := "⚖️ Safe"
+
+string t_1d = not na(d_ema20) ? (close >= d_ema20 ? "🐂" : "🐻") : "-"
+string t_1h_e = not na(h1_ema) ? (close >= h1_ema ? "🐂" : "🐻") : "-"
+string t_1h_s = not na(h1_sma) ? (close >= h1_sma ? "🐂" : "🐻") : "-"
+string t_15m = not na(m15_ema) ? (close >= m15_ema ? "🐂" : "🐻") : "-"
+string cross_tag = not na(h1_ema) and not na(h1_sma) ? (h1_ema >= h1_sma ? " (Gold)" : " (Death)") : ""
+string trend_summary = "Trend: 1D " + t_1d + " | 1H " + t_1h_e + "/" + t_1h_s + cross_tag + " | 15m " + t_15m
+
+string a_6pm = not na(d_open) ? (close >= d_open ? "🐂" : "🐻") : "-"
+string a_mid = not na(openprice) and openprice > 0 ? (close >= openprice ? "🐂" : "🐻") : "-"
+string a_ndog = not na(active_ndog_ce) ? (close >= active_ndog_ce ? "🐂" : "🐻") : "-"
+string anchor_summary = "Anchors: 6PM " + a_6pm + " | Mid " + a_mid + " | NDOG " + a_ndog
 
 string b_tip = "─── MARKET SENTIMENT ───\n"
 b_tip += "Verdict: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/7)\n"
@@ -336,11 +370,27 @@ int target_row = i_vOffset == "iPhone / Mobile (+1 Row)" ? 1 : i_vOffset == "iPh
 
 if barstate.islast
     if i_showBias
-        table.clear(bias_tbl, 0, 0, 0, 2)
+        table.clear(bias_tbl, 0, 0, 0, 7)
         if target_row > 0
             for r = 0 to target_row - 1
                 table.cell(bias_tbl, 0, r, " ", text_size=size.normal, bgcolor=color(na))
-        table.cell(bias_tbl, 0, target_row, b_text, text_color=color.white, text_size=f_get_size(i_biasSize), bgcolor=b_color, tooltip=b_tip)
+        
+        if i_badgeStyle == "Full Details Card (Mobile Friendly)"
+            color card_bg = color.new(#1e222d, math.max(25, i_biasTrans))
+            table.cell(bias_tbl, 0, target_row, pill_title, text_color=color.white, text_size=f_get_size(i_biasSize), bgcolor=b_color, tooltip=b_tip)
+            table.cell(bias_tbl, 0, target_row + 1, "Regime: " + regime_str, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
+            table.cell(bias_tbl, 0, target_row + 2, trend_summary, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
+            table.cell(bias_tbl, 0, target_row + 3, anchor_summary, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
+            table.cell(bias_tbl, 0, target_row + 4, "Switch: " + safety_note, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
+        else
+            string badge_cell_text = pill_title
+            if i_badgeStyle == "Pill + Subtitle (Mobile Friendly)"
+                badge_cell_text += "\n" + regime_short + " • " + safety_short
+            table.cell(bias_tbl, 0, target_row, badge_cell_text, text_color=color.white, text_size=f_get_size(i_biasSize), bgcolor=b_color, tooltip=b_tip)
     else
-        table.clear(bias_tbl, 0, 0, 0, 2)
+        table.clear(bias_tbl, 0, 0, 0, 7)
+
+// Output to Data Window for Mobile inspection without chart clutter
+plot(bias_score, title="Market Sentiment Score", display=display.data_window)
+plot(not na(m15_adx) ? m15_adx : na, title="15m ADX", display=display.data_window)
 
