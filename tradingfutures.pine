@@ -76,8 +76,10 @@ f_fetch_rth_arrays() =>
 [w_tops, w_btms, w_tms, w_bulls] = request.security(syminfo.tickerid, "W", f_fetch_htf_gaps(10))
 [d_tops, d_btms, d_tms, d_bulls] = request.security(syminfo.tickerid, "D", f_fetch_htf_gaps(10))
 [r_tops, r_btms, r_tms]          = request.security(syminfo.tickerid, "15", f_fetch_rth_arrays())
-d_open                           = request.security(syminfo.tickerid, "D", open)
+[d_open, d_ema20]                = request.security(syminfo.tickerid, "D", [open, ta.ema(close, 20)])
 [h1_ema, h1_sma, h1_close]       = request.security(syminfo.tickerid, "60", [ta.ema(close, i_emaLen), ta.sma(close, i_smaLen), close])
+[m15_ema, m15_close]             = request.security(syminfo.tickerid, "15", [ta.ema(close, 20), close])
+[m15_dip, m15_dim, m15_adx]      = request.security(syminfo.tickerid, "15", ta.dmi(14, 14))
 
 // --- GAP Engine ---
 show_draws = not timeframe.isdwm // Master switch: Hides drawings on D, W, M timeframes
@@ -237,41 +239,96 @@ var table bias_tbl = table.new(tbl_pos, 1, 3, bgcolor=color(na), border_width=0)
 float active_ndog_ce = array.size(d_tops) > 0 ? math.avg(array.get(d_tops, 0), array.get(d_btms, 0)) : na
 
 int bias_score = 0
+string tip_1d = ""
+string tip_1h_ema = ""
+string tip_1h_sma = ""
+string tip_15m = ""
 string tip_6pm = ""
 string tip_ny = ""
 string tip_ndog = ""
-string tip_h1_ema = ""
-string tip_h1_sma = ""
 
+// 1. 1D Macro Trend (20 EMA)
+if not na(d_ema20)
+    bool is_b = close >= d_ema20
+    bias_score += (is_b ? 1 : -1)
+    tip_1d := "• 1D Macro (20 EMA " + str.tostring(math.round_to_mintick(d_ema20)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+
+// 2. 1H 50 EMA
+if not na(h1_ema)
+    bool is_b = close >= h1_ema
+    bias_score += (is_b ? 1 : -1)
+    tip_1h_ema := "• 1H " + str.tostring(i_emaLen) + " EMA (" + str.tostring(math.round_to_mintick(h1_ema)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+
+// 3. 1H 200 SMA + Golden/Death Cross
+if not na(h1_sma)
+    bool is_b = close >= h1_sma
+    bias_score += (is_b ? 1 : -1)
+    string cross_info = not na(h1_ema) ? (h1_ema >= h1_sma ? " | Golden Cross" : " | Death Cross") : ""
+    tip_1h_sma := "• 1H " + str.tostring(i_smaLen) + " SMA (" + str.tostring(math.round_to_mintick(h1_sma)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)") + cross_info
+
+// 4. 15m Tactical Momentum (20 EMA)
+if not na(m15_ema)
+    bool is_b = close >= m15_ema
+    bias_score += (is_b ? 1 : -1)
+    tip_15m := "• 15m Momentum (20 EMA " + str.tostring(math.round_to_mintick(m15_ema)) + "): " + (is_b ? "Bullish (Pushing Up)" : "Bearish (Pulling Back / Cracking)")
+
+// 5. 6:00 PM Globex Daily Open
 if not na(d_open)
     bool is_b = close >= d_open
     bias_score += (is_b ? 1 : -1)
     tip_6pm := "• Globex 6PM Open (" + str.tostring(math.round_to_mintick(d_open)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
 
+// 6. NY Midnight Open
 if not na(openprice) and openprice > 0
     bool is_b = close >= openprice
     bias_score += (is_b ? 1 : -1)
     tip_ny := "• NY Midnight Open (" + str.tostring(math.round_to_mintick(openprice)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
 
+// 7. Active NDOG CE
 if not na(active_ndog_ce)
     bool is_b = close >= active_ndog_ce
     bias_score += (is_b ? 1 : -1)
     tip_ndog := "• Active NDOG CE (" + str.tostring(math.round_to_mintick(active_ndog_ce)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
 
-if not na(h1_ema)
-    bool is_b = close >= h1_ema
-    bias_score += (is_b ? 1 : -1)
-    tip_h1_ema := "• 1H " + str.tostring(i_emaLen) + " EMA (" + str.tostring(math.round_to_mintick(h1_ema)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+// Market Regime & Safety Switch
+string regime_str = "Neutral / Moderate"
+if not na(m15_adx)
+    if m15_adx >= 25
+        regime_str := "EXPANSION (Runaway Trend - ADX " + str.tostring(math.round(m15_adx, 1)) + ")"
+    else if m15_adx < 20
+        regime_str := "MEAN-REVERSION (Ideal Range - ADX " + str.tostring(math.round(m15_adx, 1)) + ")"
+    else
+        regime_str := "MODERATE (Transitioning - ADX " + str.tostring(math.round(m15_adx, 1)) + ")"
 
-if not na(h1_sma)
-    bool is_b = close >= h1_sma
-    bias_score += (is_b ? 1 : -1)
-    string cross_info = not na(h1_ema) ? (h1_ema >= h1_sma ? " | Golden Cross" : " | Death Cross") : ""
-    tip_h1_sma := "• 1H " + str.tostring(i_smaLen) + " SMA (" + str.tostring(math.round_to_mintick(h1_sma)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)") + cross_info
+string safety_note = ""
+if not na(m15_adx) and m15_adx >= 25 and bias_score >= 4
+    safety_note := "🛑 HIGH TREND RISK: Strong expansion underway. Avoid aggressive short scaling!"
+else if not na(m15_ema) and close < m15_ema and not na(openprice) and close >= openprice
+    safety_note := "🟢 HIGH PROBABILITY SHORT: 15m momentum cracked while at premium above midnight."
+else if bias_score <= -4
+    safety_note := "📉 HEAVY BEARISH PRESSURE: Market in strong distribution."
+else
+    safety_note := "⚖️ NORMAL CONDITIONS: Standard mean-reversion rules apply."
 
 string b_text = bias_score > 0 ? "BULLISH" : bias_score < 0 ? "BEARISH" : "NEUTRAL"
 color b_color = bias_score > 0 ? color.new(#089981, 0) : bias_score < 0 ? color.new(#f23645, 0) : color.new(#5d606b, 0)
-string b_tip  = "Market Sentiment: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/5)\n" + tip_6pm + "\n" + tip_ny + "\n" + tip_ndog + "\n" + tip_h1_ema + "\n" + tip_h1_sma
+string b_tip  = "════ MARKET SENTIMENT ════\n" + 
+                "Verdict: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/7)\n" + 
+                "Regime : " + regime_str + "\n" + 
+                "──────────────────────────\n" + 
+                "TIMEFRAME ALIGNMENT:\n" + 
+                tip_1d + "\n" + 
+                tip_1h_ema + "\n" + 
+                tip_1h_sma + "\n" + 
+                tip_15m + "\n" + 
+                "──────────────────────────\n" + 
+                "ICT ANCHORS:\n" + 
+                tip_6pm + "\n" + 
+                tip_ny + "\n" + 
+                tip_ndog + "\n" + 
+                "──────────────────────────\n" + 
+                "SAFETY SWITCH:\n" + 
+                safety_note
 
 int target_row = i_vOffset == "iPhone / Mobile (+1 Row)" ? 1 : i_vOffset == "iPhone / Mobile (+2 Rows)" ? 2 : 0
 
