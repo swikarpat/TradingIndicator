@@ -44,7 +44,7 @@ grp_ndog = "NDOG Settings", i_showNdog = input.bool(true,"Show NDOG",group=grp_n
 grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",group=grp_gen)
 grp_rthg = "RTHG Settings", i_showRthg = input.bool(true,"Show Regular Trading Hours Gap",group=grp_rthg), i_rthgCount = input.int(6,"How many RTH gaps to show",minval=1,group=grp_rthg), i_rthgLines = input.string("CE","Show RTH Gap Lines",options=["None","CE","Quadrant"],group=grp_rthg), i_rthgColor = input.color(color.new(#00b9d0,90),"RTH Gap color",group=grp_rthg), i_rthgTxtColor = input.color(#008f9c,"Text Color",inline="rthg_t",group=grp_rthg), i_rthgText = input.string("RTHG","Label",inline="rthg_t",group=grp_rthg), i_rthgTxtSize = input.string("tiny","Size",options=["tiny","small","normal","large"],inline="rthg_t",group=grp_rthg), i_rthgBorderCol = input.color(#00b9d0,"RTHG Border Color",inline="rthg_b",group=grp_rthg), i_rthgBorderStyle = input.string("solid (—)","Style",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_b",group=grp_rthg), i_rthgBorderWidth = input.int(0,"Width",minval=0,inline="rthg_b",group=grp_rthg), i_rthgLineCol = input.color(#00b9d0,"RTHG Lines color",inline="rthg_l",group=grp_rthg), i_rthgLineStyle = input.string("dashed (---)","Style",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_l",group=grp_rthg), i_rthgLineWidth = input.int(1,"Width",minval=1,inline="rthg_l",group=grp_rthg), i_rthSess = input.session("0930-1615","Market Hours (EST)",group=grp_rthg,tooltip="RTH session hours in EST/EDT")
 grp_ny = "NY Midnight Open Settings", i_showNy = input.bool(true,"Show NY Midnight Open",group=grp_ny)
-grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias)
+grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop Default", "Vertical Spacing", options=["Desktop Default", "iPhone / Mobile (+1 Row)", "iPhone / Mobile (+2 Rows)"], group=grp_bias, tooltip="Select 'iPhone / Mobile' to push the badge down below the mobile header.")
 
 // --- HTF Data Fetchers ---
 f_fetch_htf_gaps(int count) =>
@@ -232,7 +232,7 @@ plot(i_showMas ? ema_out : na, title="EMA", color=i_emaColor, display=display.pr
 
 // --- Market Sentiment Banner Engine ---
 tbl_pos = i_biasPos == "Top Left" ? position.top_left : i_biasPos == "Bottom Right" ? position.bottom_right : i_biasPos == "Bottom Left" ? position.bottom_left : position.top_right
-var table bias_tbl = table.new(tbl_pos, 1, 1, bgcolor=color(na), border_width=0)
+var table bias_tbl = table.new(tbl_pos, 1, 3, bgcolor=color(na), border_width=0)
 
 float active_ndog_ce = array.size(d_tops) > 0 ? math.avg(array.get(d_tops, 0), array.get(d_btms, 0)) : na
 
@@ -273,9 +273,15 @@ string b_text = bias_score > 0 ? "BULLISH" : bias_score < 0 ? "BEARISH" : "NEUTR
 color b_color = bias_score > 0 ? color.new(#089981, 0) : bias_score < 0 ? color.new(#f23645, 0) : color.new(#5d606b, 0)
 string b_tip  = "Market Sentiment: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/5)\n" + tip_6pm + "\n" + tip_ny + "\n" + tip_ndog + "\n" + tip_h1_ema + "\n" + tip_h1_sma
 
+int target_row = i_vOffset == "iPhone / Mobile (+1 Row)" ? 1 : i_vOffset == "iPhone / Mobile (+2 Rows)" ? 2 : 0
+
 if barstate.islast
     if i_showBias
-        table.cell(bias_tbl, 0, 0, b_text, text_color=color.white, text_size=f_get_size(i_biasSize), bgcolor=b_color, tooltip=b_tip)
+        table.clear(bias_tbl, 0, 0, 0, 2)
+        if target_row > 0
+            for r = 0 to target_row - 1
+                table.cell(bias_tbl, 0, r, " ", text_size=size.normal, bgcolor=color(na))
+        table.cell(bias_tbl, 0, target_row, b_text, text_color=color.white, text_size=f_get_size(i_biasSize), bgcolor=b_color, tooltip=b_tip)
     else
-        table.clear(bias_tbl, 0, 0)
+        table.clear(bias_tbl, 0, 0, 0, 2)
 
