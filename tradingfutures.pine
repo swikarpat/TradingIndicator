@@ -44,7 +44,7 @@ grp_ndog = "NDOG Settings", i_showNdog = input.bool(true,"Show NDOG",group=grp_n
 grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",group=grp_gen)
 grp_rthg = "RTHG Settings", i_showRthg = input.bool(true,"Show Regular Trading Hours Gap",group=grp_rthg), i_rthgCount = input.int(6,"How many RTH gaps to show",minval=1,group=grp_rthg), i_rthgLines = input.string("CE","Show RTH Gap Lines",options=["None","CE","Quadrant"],group=grp_rthg), i_rthgColor = input.color(color.new(#00b9d0,90),"RTH Gap color",group=grp_rthg), i_rthgTxtColor = input.color(#008f9c,"Text",inline="rthg_t",group=grp_rthg), i_rthgText = input.string("RTHG","",inline="rthg_t",group=grp_rthg), i_rthgTxtSize = input.string("tiny","",options=["tiny","small","normal","large"],inline="rthg_t",group=grp_rthg), i_rthgBorderCol = input.color(#00b9d0,"Border",inline="rthg_b",group=grp_rthg), i_rthgBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_b",group=grp_rthg), i_rthgBorderWidth = input.int(0,"",minval=0,inline="rthg_b",group=grp_rthg), i_rthgLineCol = input.color(#00b9d0,"Lines",inline="rthg_l",group=grp_rthg), i_rthgLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_l",group=grp_rthg), i_rthgLineWidth = input.int(1,"",minval=1,inline="rthg_l",group=grp_rthg), i_rthSess = input.session("0930-1615","Market Hours (EST)",group=grp_rthg,tooltip="RTH session hours in EST/EDT")
 grp_ny = "NY Midnight Open Settings", i_showNy = input.bool(true,"Show NY Midnight Open",group=grp_ny)
-grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop Default", "Vertical Spacing", options=["Desktop Default", "iPhone / Mobile (+1 Row)", "iPhone / Mobile (+2 Rows)"], group=grp_bias, tooltip="Select 'iPhone / Mobile' to push the badge down below the mobile header."), i_biasTrans = input.int(15, "Badge Transparency %", minval=0, maxval=90, group=grp_bias, tooltip="Adjust opacity of badge on chart (0% = solid, 50% = semi-transparent)."), i_badgeStyle = input.string("Compact Pill", "Badge Style", options=["Compact Pill", "Pill + Subtitle (Mobile Friendly)", "Full Details Card (Mobile Friendly)"], group=grp_bias, tooltip="On iPhone/mobile where tooltips cannot be touched, choose 'Pill + Subtitle' or 'Full Details Card' to see analytics directly on the chart."), i_showScore = input.bool(true, "Show Score on Badge (e.g. +5/7)", group=grp_bias, tooltip="Display the numerical score directly on the badge.")
+grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop", "Platform / Spacing", options=["Desktop", "Mobile"], group=grp_bias, tooltip="Select 'Mobile' to push the badge down below the mobile header."), i_badgeStyle = input.string("Compact Pill", "Badge Style", options=["Compact Pill", "Pill + Subtitle (Mobile Friendly)", "Full Details Card (Mobile Friendly)"], group=grp_bias, tooltip="On iPhone/mobile where tooltips cannot be touched, choose 'Pill + Subtitle' or 'Full Details Card' to see analytics directly on the chart."), i_showScore = input.bool(true, "Show Score on Badge (e.g. +5/7)", group=grp_bias, tooltip="Display the numerical score directly on the badge.")
 
 // --- HTF Data Fetchers ---
 f_fetch_htf_gaps(int count) =>
@@ -313,8 +313,7 @@ else
 string b_text = bias_score > 0 ? "BULLISH" : bias_score < 0 ? "BEARISH" : "NEUTRAL"
 string score_tag = i_showScore ? " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/7)" : ""
 string pill_title = b_text + score_tag
-color base_b_color = bias_score > 0 ? #089981 : bias_score < 0 ? #f23645 : #5d606b
-color b_color = color.new(base_b_color, i_biasTrans)
+color b_color = bias_score > 0 ? #089981 : bias_score < 0 ? #f23645 : #5d606b
 
 // Mobile short indicators
 string regime_short = "Neutral"
@@ -366,7 +365,7 @@ b_tip += "──────────────────\n"
 b_tip += "SAFETY SWITCH:\n"
 b_tip += safety_note
 
-int target_row = i_vOffset == "iPhone / Mobile (+1 Row)" ? 1 : i_vOffset == "iPhone / Mobile (+2 Rows)" ? 2 : 0
+int target_row = i_vOffset == "Mobile" ? 1 : 0
 
 if barstate.islast
     if i_showBias
@@ -376,7 +375,7 @@ if barstate.islast
                 table.cell(bias_tbl, 0, r, " ", text_size=size.normal, bgcolor=color(na))
         
         if i_badgeStyle == "Full Details Card (Mobile Friendly)"
-            color card_bg = color.new(#1e222d, math.max(25, i_biasTrans))
+            color card_bg = #1e222d
             table.cell(bias_tbl, 0, target_row, pill_title, text_color=color.white, text_size=f_get_size(i_biasSize), bgcolor=b_color, tooltip=b_tip)
             table.cell(bias_tbl, 0, target_row + 1, "Regime: " + regime_str, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
             table.cell(bias_tbl, 0, target_row + 2, trend_summary, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
