@@ -35,14 +35,14 @@ f_get_size(string s) => s=="tiny" ? size.tiny : s=="small" ? size.small : s=="no
 
 // --- Settings ---
 grp_ma = "Moving Averages Settings", i_showMas = input.bool(false, "Show EMA/SMA", group=grp_ma)
-i_smaColor = input.color(#42bda8,"SMA Color",inline="sma_main",group=grp_ma), i_smaLen = input.int(200,minval=1,title="SMA Length",inline="sma_main",group=grp_ma)
-i_emaColor = input.color(#5b9cf6,"EMA Color",inline="ema_main",group=grp_ma), i_emaLen = input.int(50,minval=1,title="EMA Length",inline="ema_main",group=grp_ma)
+i_smaColor = input.color(#42bda8,"SMA",inline="sma_main",group=grp_ma), i_smaLen = input.int(200,minval=1,title="",inline="sma_main",group=grp_ma)
+i_emaColor = input.color(#5b9cf6,"EMA",inline="ema_main",group=grp_ma), i_emaLen = input.int(50,minval=1,title="",inline="ema_main",group=grp_ma)
 
-grp_nwog = "NWOG Settings", i_showNwog = input.bool(true,"Show NWOG",group=grp_nwog), i_nwogCount = input.int(5,"Amount",minval=1,group=grp_nwog), i_nwogLines = input.string("CE","Show Lines",options=["None","CE","Quadrant"],group=grp_nwog), i_nwogColorBull = input.color(color.new(#5b9cf6, 90),"Gaps Colors",inline="nwog_col",group=grp_nwog), i_nwogColorBear = input.color(color.new(#5b9cf6, 90),"",inline="nwog_col",group=grp_nwog), i_nwogBorderCol = input.color(color.new(#5b9cf6, 90),"Border Color",inline="nwog_b",group=grp_nwog), i_nwogBorderStyle = input.string("solid (—)","Style",options=["solid (—)","dotted (...)","dashed (---)"],inline="nwog_b",group=grp_nwog), i_nwogBorderWidth = input.int(1,"Width",minval=0,inline="nwog_b",group=grp_nwog), i_nwogLineCol = input.color(color.new(#5b9cf6, 90),"Lines color",inline="nwog_l",group=grp_nwog), i_nwogLineStyle = input.string("dashed (---)","Style",options=["solid (—)","dotted (...)","dashed (---)"],inline="nwog_l",group=grp_nwog), i_nwogLineWidth = input.int(1,"Width",minval=1,inline="nwog_l",group=grp_nwog)
-grp_ndog = "NDOG Settings", i_showNdog = input.bool(true,"Show NDOG",group=grp_ndog), i_ndogCount = input.int(5,"Amount",minval=1,group=grp_ndog), i_ndogLines = input.string("CE","Show Lines",options=["None","CE","Quadrant"],group=grp_ndog), i_ndogColorBull = input.color(color.new(#ba68c8, 90),"Gaps Colors",inline="ndog_col",group=grp_ndog), i_ndogColorBear = input.color(color.new(#ba68c8, 90),"",inline="ndog_col",group=grp_ndog), i_ndogBorderCol = input.color(color.new(#ba68c8, 90),"Border Color",inline="ndog_b",group=grp_ndog), i_ndogBorderStyle = input.string("solid (—)","Style",options=["solid (—)","dotted (...)","dashed (---)"],inline="ndog_b",group=grp_ndog), i_ndogBorderWidth = input.int(1,"Width",minval=0,inline="ndog_b",group=grp_ndog), i_ndogLineCol = input.color(color.new(#ba68c8, 90),"Lines color",inline="ndog_l",group=grp_ndog), i_ndogLineStyle = input.string("dashed (---)","Style",options=["solid (—)","dotted (...)","dashed (---)"],inline="ndog_l",group=grp_ndog), i_ndogLineWidth = input.int(1,"Width",minval=1,inline="ndog_l",group=grp_ndog)
+grp_nwog = "NWOG Settings", i_showNwog = input.bool(true,"Show NWOG",group=grp_nwog), i_nwogCount = input.int(5,"Amount",minval=1,group=grp_nwog), i_nwogLines = input.string("CE","Show Lines",options=["None","CE","Quadrant"],group=grp_nwog), i_nwogColorBull = input.color(color.new(#5b9cf6, 90),"Gaps Colors",inline="nwog_col",group=grp_nwog), i_nwogColorBear = input.color(color.new(#5b9cf6, 90),"",inline="nwog_col",group=grp_nwog), i_nwogBorderCol = input.color(color.new(#5b9cf6, 90),"Border",inline="nwog_b",group=grp_nwog), i_nwogBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="nwog_b",group=grp_nwog), i_nwogBorderWidth = input.int(1,"",minval=0,inline="nwog_b",group=grp_nwog), i_nwogLineCol = input.color(color.new(#5b9cf6, 90),"Lines",inline="nwog_l",group=grp_nwog), i_nwogLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="nwog_l",group=grp_nwog), i_nwogLineWidth = input.int(1,"",minval=1,inline="nwog_l",group=grp_nwog)
+grp_ndog = "NDOG Settings", i_showNdog = input.bool(true,"Show NDOG",group=grp_ndog), i_ndogCount = input.int(5,"Amount",minval=1,group=grp_ndog), i_ndogLines = input.string("CE","Show Lines",options=["None","CE","Quadrant"],group=grp_ndog), i_ndogColorBull = input.color(color.new(#ba68c8, 90),"Gaps Colors",inline="ndog_col",group=grp_ndog), i_ndogColorBear = input.color(color.new(#ba68c8, 90),"",inline="ndog_col",group=grp_ndog), i_ndogBorderCol = input.color(color.new(#ba68c8, 90),"Border",inline="ndog_b",group=grp_ndog), i_ndogBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="ndog_b",group=grp_ndog), i_ndogBorderWidth = input.int(1,"",minval=0,inline="ndog_b",group=grp_ndog), i_ndogLineCol = input.color(color.new(#ba68c8, 90),"Lines",inline="ndog_l",group=grp_ndog), i_ndogLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="ndog_l",group=grp_ndog), i_ndogLineWidth = input.int(1,"",minval=1,inline="ndog_l",group=grp_ndog)
 
 grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",group=grp_gen)
-grp_rthg = "RTHG Settings", i_showRthg = input.bool(true,"Show Regular Trading Hours Gap",group=grp_rthg), i_rthgCount = input.int(6,"How many RTH gaps to show",minval=1,group=grp_rthg), i_rthgLines = input.string("CE","Show RTH Gap Lines",options=["None","CE","Quadrant"],group=grp_rthg), i_rthgColor = input.color(color.new(#00b9d0,90),"RTH Gap color",group=grp_rthg), i_rthgTxtColor = input.color(#008f9c,"Text Color",inline="rthg_t",group=grp_rthg), i_rthgText = input.string("RTHG","Label",inline="rthg_t",group=grp_rthg), i_rthgTxtSize = input.string("tiny","Size",options=["tiny","small","normal","large"],inline="rthg_t",group=grp_rthg), i_rthgBorderCol = input.color(#00b9d0,"RTHG Border Color",inline="rthg_b",group=grp_rthg), i_rthgBorderStyle = input.string("solid (—)","Style",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_b",group=grp_rthg), i_rthgBorderWidth = input.int(0,"Width",minval=0,inline="rthg_b",group=grp_rthg), i_rthgLineCol = input.color(#00b9d0,"RTHG Lines color",inline="rthg_l",group=grp_rthg), i_rthgLineStyle = input.string("dashed (---)","Style",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_l",group=grp_rthg), i_rthgLineWidth = input.int(1,"Width",minval=1,inline="rthg_l",group=grp_rthg), i_rthSess = input.session("0930-1615","Market Hours (EST)",group=grp_rthg,tooltip="RTH session hours in EST/EDT")
+grp_rthg = "RTHG Settings", i_showRthg = input.bool(true,"Show Regular Trading Hours Gap",group=grp_rthg), i_rthgCount = input.int(6,"How many RTH gaps to show",minval=1,group=grp_rthg), i_rthgLines = input.string("CE","Show RTH Gap Lines",options=["None","CE","Quadrant"],group=grp_rthg), i_rthgColor = input.color(color.new(#00b9d0,90),"RTH Gap color",group=grp_rthg), i_rthgTxtColor = input.color(#008f9c,"Text",inline="rthg_t",group=grp_rthg), i_rthgText = input.string("RTHG","",inline="rthg_t",group=grp_rthg), i_rthgTxtSize = input.string("tiny","",options=["tiny","small","normal","large"],inline="rthg_t",group=grp_rthg), i_rthgBorderCol = input.color(#00b9d0,"Border",inline="rthg_b",group=grp_rthg), i_rthgBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_b",group=grp_rthg), i_rthgBorderWidth = input.int(0,"",minval=0,inline="rthg_b",group=grp_rthg), i_rthgLineCol = input.color(#00b9d0,"Lines",inline="rthg_l",group=grp_rthg), i_rthgLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_l",group=grp_rthg), i_rthgLineWidth = input.int(1,"",minval=1,inline="rthg_l",group=grp_rthg), i_rthSess = input.session("0930-1615","Market Hours (EST)",group=grp_rthg,tooltip="RTH session hours in EST/EDT")
 grp_ny = "NY Midnight Open Settings", i_showNy = input.bool(true,"Show NY Midnight Open",group=grp_ny)
 grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop Default", "Vertical Spacing", options=["Desktop Default", "iPhone / Mobile (+1 Row)", "iPhone / Mobile (+2 Rows)"], group=grp_bias, tooltip="Select 'iPhone / Mobile' to push the badge down below the mobile header.")
 
@@ -312,23 +312,23 @@ else
 
 string b_text = bias_score > 0 ? "BULLISH" : bias_score < 0 ? "BEARISH" : "NEUTRAL"
 color b_color = bias_score > 0 ? color.new(#089981, 0) : bias_score < 0 ? color.new(#f23645, 0) : color.new(#5d606b, 0)
-string b_tip  = "════ MARKET SENTIMENT ════\n" + 
-                "Verdict: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/7)\n" + 
-                "Regime : " + regime_str + "\n" + 
-                "──────────────────────────\n" + 
-                "TIMEFRAME ALIGNMENT:\n" + 
-                tip_1d + "\n" + 
-                tip_1h_ema + "\n" + 
-                tip_1h_sma + "\n" + 
-                tip_15m + "\n" + 
-                "──────────────────────────\n" + 
-                "ICT ANCHORS:\n" + 
-                tip_6pm + "\n" + 
-                tip_ny + "\n" + 
-                tip_ndog + "\n" + 
-                "──────────────────────────\n" + 
-                "SAFETY SWITCH:\n" + 
-                safety_note
+string b_tip = "════ MARKET SENTIMENT ════\n"
+b_tip += "Verdict: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/7)\n"
+b_tip += "Regime : " + regime_str + "\n"
+b_tip += "──────────────────────────\n"
+b_tip += "TIMEFRAME ALIGNMENT:\n"
+b_tip += tip_1d + "\n"
+b_tip += tip_1h_ema + "\n"
+b_tip += tip_1h_sma + "\n"
+b_tip += tip_15m + "\n"
+b_tip += "──────────────────────────\n"
+b_tip += "ICT ANCHORS:\n"
+b_tip += tip_6pm + "\n"
+b_tip += tip_ny + "\n"
+b_tip += tip_ndog + "\n"
+b_tip += "──────────────────────────\n"
+b_tip += "SAFETY SWITCH:\n"
+b_tip += safety_note
 
 int target_row = i_vOffset == "iPhone / Mobile (+1 Row)" ? 1 : i_vOffset == "iPhone / Mobile (+2 Rows)" ? 2 : 0
 
