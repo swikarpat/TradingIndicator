@@ -44,7 +44,7 @@ grp_ndog = "NDOG Settings", i_showNdog = input.bool(true,"Show NDOG",group=grp_n
 grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",group=grp_gen)
 grp_rthg = "RTHG Settings", i_showRthg = input.bool(true,"Show Regular Trading Hours Gap",group=grp_rthg), i_rthgCount = input.int(6,"How many RTH gaps to show",minval=1,group=grp_rthg), i_rthgLines = input.string("CE","Show RTH Gap Lines",options=["None","CE","Quadrant"],group=grp_rthg), i_rthgColor = input.color(color.new(#00b9d0,90),"RTH Gap color",group=grp_rthg), i_rthgTxtColor = input.color(#008f9c,"Text",inline="rthg_t",group=grp_rthg), i_rthgText = input.string("RTHG","",inline="rthg_t",group=grp_rthg), i_rthgTxtSize = input.string("tiny","",options=["tiny","small","normal","large"],inline="rthg_t",group=grp_rthg), i_rthgBorderCol = input.color(#00b9d0,"Border",inline="rthg_b",group=grp_rthg), i_rthgBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_b",group=grp_rthg), i_rthgBorderWidth = input.int(0,"",minval=0,inline="rthg_b",group=grp_rthg), i_rthgLineCol = input.color(#00b9d0,"Lines",inline="rthg_l",group=grp_rthg), i_rthgLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_l",group=grp_rthg), i_rthgLineWidth = input.int(1,"",minval=1,inline="rthg_l",group=grp_rthg), i_rthSess = input.session("0930-1615","Market Hours (EST)",group=grp_rthg,tooltip="RTH session hours in EST/EDT")
 grp_ny = "NY Midnight Open Settings", i_showNy = input.bool(true,"Show NY Midnight Open",group=grp_ny)
-grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop Default", "Vertical Spacing", options=["Desktop Default", "iPhone / Mobile (+1 Row)", "iPhone / Mobile (+2 Rows)"], group=grp_bias, tooltip="Select 'iPhone / Mobile' to push the badge down below the mobile header.")
+grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop Default", "Vertical Spacing", options=["Desktop Default", "iPhone / Mobile (+1 Row)", "iPhone / Mobile (+2 Rows)"], group=grp_bias, tooltip="Select 'iPhone / Mobile' to push the badge down below the mobile header."), i_biasTrans = input.int(15, "Badge Transparency %", minval=0, maxval=90, group=grp_bias, tooltip="Adjust opacity of badge on chart (0% = solid, 50% = semi-transparent).")
 
 // --- HTF Data Fetchers ---
 f_fetch_htf_gaps(int count) =>
@@ -251,82 +251,84 @@ string tip_ndog = ""
 if not na(d_ema20)
     bool is_b = close >= d_ema20
     bias_score += (is_b ? 1 : -1)
-    tip_1d := "• 1D Macro (20 EMA " + str.tostring(math.round_to_mintick(d_ema20)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+    tip_1d := "• 1D 20 EMA (" + str.tostring(math.round_to_mintick(d_ema20)) + "): " + (is_b ? "Bullish" : "Bearish")
 
 // 2. 1H 50 EMA
 if not na(h1_ema)
     bool is_b = close >= h1_ema
     bias_score += (is_b ? 1 : -1)
-    tip_1h_ema := "• 1H " + str.tostring(i_emaLen) + " EMA (" + str.tostring(math.round_to_mintick(h1_ema)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+    tip_1h_ema := "• 1H " + str.tostring(i_emaLen) + " EMA (" + str.tostring(math.round_to_mintick(h1_ema)) + "): " + (is_b ? "Bullish" : "Bearish")
 
 // 3. 1H 200 SMA + Golden/Death Cross
 if not na(h1_sma)
     bool is_b = close >= h1_sma
     bias_score += (is_b ? 1 : -1)
-    string cross_info = not na(h1_ema) ? (h1_ema >= h1_sma ? " | Golden Cross" : " | Death Cross") : ""
-    tip_1h_sma := "• 1H " + str.tostring(i_smaLen) + " SMA (" + str.tostring(math.round_to_mintick(h1_sma)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)") + cross_info
+    string cross_info = not na(h1_ema) ? (h1_ema >= h1_sma ? " (Golden)" : " (Death)") : ""
+    tip_1h_sma := "• 1H " + str.tostring(i_smaLen) + " SMA (" + str.tostring(math.round_to_mintick(h1_sma)) + "): " + (is_b ? "Bullish" : "Bearish") + cross_info
 
 // 4. 15m Tactical Momentum (20 EMA)
 if not na(m15_ema)
     bool is_b = close >= m15_ema
     bias_score += (is_b ? 1 : -1)
-    tip_15m := "• 15m Momentum (20 EMA " + str.tostring(math.round_to_mintick(m15_ema)) + "): " + (is_b ? "Bullish (Pushing Up)" : "Bearish (Pulling Back / Cracking)")
+    tip_15m := "• 15m 20 EMA (" + str.tostring(math.round_to_mintick(m15_ema)) + "): " + (is_b ? "Bullish" : "Bearish")
 
 // 5. 6:00 PM Globex Daily Open
 if not na(d_open)
     bool is_b = close >= d_open
     bias_score += (is_b ? 1 : -1)
-    tip_6pm := "• Globex 6PM Open (" + str.tostring(math.round_to_mintick(d_open)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+    tip_6pm := "• Globex 6PM (" + str.tostring(math.round_to_mintick(d_open)) + "): " + (is_b ? "Bullish" : "Bearish")
 
 // 6. NY Midnight Open
 if not na(openprice) and openprice > 0
     bool is_b = close >= openprice
     bias_score += (is_b ? 1 : -1)
-    tip_ny := "• NY Midnight Open (" + str.tostring(math.round_to_mintick(openprice)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+    tip_ny := "• NY Midnight (" + str.tostring(math.round_to_mintick(openprice)) + "): " + (is_b ? "Bullish" : "Bearish")
 
 // 7. Active NDOG CE
 if not na(active_ndog_ce)
     bool is_b = close >= active_ndog_ce
     bias_score += (is_b ? 1 : -1)
-    tip_ndog := "• Active NDOG CE (" + str.tostring(math.round_to_mintick(active_ndog_ce)) + "): " + (is_b ? "Bullish (Above)" : "Bearish (Below)")
+    tip_ndog := "• Active NDOG (" + str.tostring(math.round_to_mintick(active_ndog_ce)) + "): " + (is_b ? "Bullish" : "Bearish")
 
 // Market Regime & Safety Switch
-string regime_str = "Neutral / Moderate"
+string regime_str = "Neutral"
 if not na(m15_adx)
     if m15_adx >= 25
-        regime_str := "EXPANSION (Runaway Trend - ADX " + str.tostring(math.round(m15_adx, 1)) + ")"
+        regime_str := "Runaway Trend (ADX " + str.tostring(math.round(m15_adx, 1)) + ")"
     else if m15_adx < 20
-        regime_str := "MEAN-REVERSION (Ideal Range - ADX " + str.tostring(math.round(m15_adx, 1)) + ")"
+        regime_str := "Mean-Rev / Range (ADX " + str.tostring(math.round(m15_adx, 1)) + ")"
     else
-        regime_str := "MODERATE (Transitioning - ADX " + str.tostring(math.round(m15_adx, 1)) + ")"
+        regime_str := "Transitioning (ADX " + str.tostring(math.round(m15_adx, 1)) + ")"
 
 string safety_note = ""
 if not na(m15_adx) and m15_adx >= 25 and bias_score >= 4
-    safety_note := "🛑 HIGH TREND RISK: Strong expansion underway. Avoid aggressive short scaling!"
+    safety_note := "🛑 Warning: Runaway trend underway"
 else if not na(m15_ema) and close < m15_ema and not na(openprice) and close >= openprice
-    safety_note := "🟢 HIGH PROBABILITY SHORT: 15m momentum cracked while at premium above midnight."
+    safety_note := "🟢 Prime Short: 15m momentum crack"
 else if bias_score <= -4
-    safety_note := "📉 HEAVY BEARISH PRESSURE: Market in strong distribution."
+    safety_note := "📉 Heavy Sell: Strong distribution"
 else
-    safety_note := "⚖️ NORMAL CONDITIONS: Standard mean-reversion rules apply."
+    safety_note := "⚖️ Normal: Mean-reversion safe"
 
 string b_text = bias_score > 0 ? "BULLISH" : bias_score < 0 ? "BEARISH" : "NEUTRAL"
-color b_color = bias_score > 0 ? color.new(#089981, 0) : bias_score < 0 ? color.new(#f23645, 0) : color.new(#5d606b, 0)
-string b_tip = "════ MARKET SENTIMENT ════\n"
+color base_b_color = bias_score > 0 ? #089981 : bias_score < 0 ? #f23645 : #5d606b
+color b_color = color.new(base_b_color, i_biasTrans)
+
+string b_tip = "─── MARKET SENTIMENT ───\n"
 b_tip += "Verdict: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/7)\n"
 b_tip += "Regime : " + regime_str + "\n"
-b_tip += "──────────────────────────\n"
+b_tip += "──────────────────\n"
 b_tip += "TIMEFRAME ALIGNMENT:\n"
 b_tip += tip_1d + "\n"
 b_tip += tip_1h_ema + "\n"
 b_tip += tip_1h_sma + "\n"
 b_tip += tip_15m + "\n"
-b_tip += "──────────────────────────\n"
+b_tip += "──────────────────\n"
 b_tip += "ICT ANCHORS:\n"
 b_tip += tip_6pm + "\n"
 b_tip += tip_ny + "\n"
 b_tip += tip_ndog + "\n"
-b_tip += "──────────────────────────\n"
+b_tip += "──────────────────\n"
 b_tip += "SAFETY SWITCH:\n"
 b_tip += safety_note
 
