@@ -45,6 +45,7 @@ grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",grou
 grp_rthg = "RTHG Settings", i_showRthg = input.bool(true,"Show Regular Trading Hours Gap",group=grp_rthg), i_rthgCount = input.int(6,"How many RTH gaps to show",minval=1,group=grp_rthg), i_rthgLines = input.string("CE","Show RTH Gap Lines",options=["None","CE","Quadrant"],group=grp_rthg), i_rthgColor = input.color(color.new(#00b9d0,90),"RTH Gap color",group=grp_rthg), i_rthgTxtColor = input.color(#008f9c,"Text",inline="rthg_t",group=grp_rthg), i_rthgText = input.string("RTHG","",inline="rthg_t",group=grp_rthg), i_rthgTxtSize = input.string("tiny","",options=["tiny","small","normal","large"],inline="rthg_t",group=grp_rthg), i_rthgBorderCol = input.color(#00b9d0,"Border",inline="rthg_b",group=grp_rthg), i_rthgBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_b",group=grp_rthg), i_rthgBorderWidth = input.int(0,"",minval=0,inline="rthg_b",group=grp_rthg), i_rthgLineCol = input.color(#00b9d0,"Lines",inline="rthg_l",group=grp_rthg), i_rthgLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_l",group=grp_rthg), i_rthgLineWidth = input.int(1,"",minval=1,inline="rthg_l",group=grp_rthg), i_rthSess = input.session("0930-1615","Market Hours (EST)",group=grp_rthg,tooltip="RTH session hours in EST/EDT")
 grp_ny = "NY Midnight Open Settings", i_showNy = input.bool(true,"Show NY Midnight Open",group=grp_ny)
 grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop", "Platform / Spacing", options=["Desktop", "Mobile"], group=grp_bias, tooltip="Select 'Mobile' to push the badge down below the mobile header."), i_badgeStyle = input.string("Compact Pill", "Badge Style", options=["Compact Pill", "Pill + Subtitle (Mobile Friendly)", "Full Details Card (Mobile Friendly)"], group=grp_bias, tooltip="On iPhone/mobile where tooltips cannot be touched, choose 'Pill + Subtitle' or 'Full Details Card' to see analytics directly on the chart."), i_showScore = input.bool(true, "Show Score on Badge (e.g. +5/7)", group=grp_bias, tooltip="Display the numerical score directly on the badge.")
+grp_disp = "Displacement / Velocity Alert", i_showDisp = input.bool(true, "Show Velocity Alert Badge", group=grp_disp), i_dispThreshold = input.float(10.0, "Displacement Threshold (Handles/Pts)", minval=1.0, step=1.0, group=grp_disp, tooltip="Points moved within a 1-minute candle to trigger displacement alert."), i_dispMemory = input.int(2, "Alert Memory (Bars)", minval=0, maxval=10, group=grp_disp, tooltip="How many bars to keep the alert badge visible after the candle closes (0 = live bar only).")
 
 // --- HTF Data Fetchers ---
 f_fetch_htf_gaps(int count) =>
@@ -79,7 +80,6 @@ f_fetch_rth_arrays() =>
 [d_open, d_ema20]                = request.security(syminfo.tickerid, "D", [open, ta.ema(close, 20)])
 [h1_ema, h1_sma, h1_close]       = request.security(syminfo.tickerid, "60", [ta.ema(close, i_emaLen), ta.sma(close, i_smaLen), close])
 [m15_ema, m15_close]             = request.security(syminfo.tickerid, "15", [ta.ema(close, 20), close])
-[m15_dip, m15_dim, m15_adx]      = request.security(syminfo.tickerid, "15", ta.dmi(14, 14))
 
 // --- GAP Engine ---
 show_draws = not timeframe.isdwm // Master switch: Hides drawings on D, W, M timeframes
@@ -290,50 +290,31 @@ if not na(active_ndog_ce)
     bias_score += (is_b ? 1 : -1)
     tip_ndog := "• Active NDOG (" + str.tostring(math.round_to_mintick(active_ndog_ce)) + "): " + (is_b ? "Bullish" : "Bearish")
 
-// Market Regime & Safety Switch
-string regime_str = "Neutral"
-if not na(m15_adx)
-    if m15_adx >= 25
-        regime_str := "Runaway Trend (ADX " + str.tostring(math.round(m15_adx, 1)) + ")"
-    else if m15_adx < 20
-        regime_str := "Mean-Rev / Range (ADX " + str.tostring(math.round(m15_adx, 1)) + ")"
-    else
-        regime_str := "Transitioning (ADX " + str.tostring(math.round(m15_adx, 1)) + ")"
-
+// Safety Switch (Decision factors)
 string safety_note = ""
-if not na(m15_adx) and m15_adx >= 25 and bias_score >= 4
-    safety_note := "🛑 Warning: Runaway trend underway"
+if bias_score >= 5
+    safety_note := "🛑 Trend Alert: Strong bullish run (+5/7). Avoid heavy shorts!"
 else if not na(m15_ema) and close < m15_ema and not na(openprice) and close >= openprice
-    safety_note := "🟢 Prime Short: 15m momentum crack"
-else if bias_score <= -4
-    safety_note := "📉 Heavy Sell: Strong distribution"
+    safety_note := "🟢 Prime Short: 15m momentum crack above midnight open."
+else if bias_score <= -5
+    safety_note := "📉 Trend Alert: Strong bearish run (-5/7). Avoid heavy longs!"
 else
-    safety_note := "⚖️ Normal: Mean-reversion safe"
+    safety_note := "⚖️ Normal: Standard mean-reversion rules apply."
+
+string safety_short = "⚖️ Safe"
+if bias_score >= 5
+    safety_short := "🛑 Trend Alert"
+else if not na(m15_ema) and close < m15_ema and not na(openprice) and close >= openprice
+    safety_short := "🟢 Short Crack"
+else if bias_score <= -5
+    safety_short := "📉 Heavy Sell"
+else
+    safety_short := "⚖️ Safe"
 
 string b_text = bias_score > 0 ? "BULLISH" : bias_score < 0 ? "BEARISH" : "NEUTRAL"
 string score_tag = i_showScore ? " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/7)" : ""
 string pill_title = b_text + score_tag
 color b_color = bias_score > 0 ? #089981 : bias_score < 0 ? #f23645 : #5d606b
-
-// Mobile short indicators
-string regime_short = "Neutral"
-if not na(m15_adx)
-    if m15_adx >= 25
-        regime_short := "Trend (" + str.tostring(math.round(m15_adx, 1)) + ")"
-    else if m15_adx < 20
-        regime_short := "Mean-Rev (" + str.tostring(math.round(m15_adx, 1)) + ")"
-    else
-        regime_short := "Transition (" + str.tostring(math.round(m15_adx, 1)) + ")"
-
-string safety_short = "⚖️ Safe"
-if not na(m15_adx) and m15_adx >= 25 and bias_score >= 4
-    safety_short := "🛑 Trend Risk!"
-else if not na(m15_ema) and close < m15_ema and not na(openprice) and close >= openprice
-    safety_short := "🟢 Short Crack"
-else if bias_score <= -4
-    safety_short := "📉 Heavy Sell"
-else
-    safety_short := "⚖️ Safe"
 
 string t_1d = not na(d_ema20) ? (close >= d_ema20 ? "🐂" : "🐻") : "-"
 string t_1h_e = not na(h1_ema) ? (close >= h1_ema ? "🐂" : "🐻") : "-"
@@ -349,7 +330,6 @@ string anchor_summary = "Anchors: 6PM " + a_6pm + " | Mid " + a_mid + " | NDOG "
 
 string b_tip = "─── MARKET SENTIMENT ───\n"
 b_tip += "Verdict: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/7)\n"
-b_tip += "Regime : " + regime_str + "\n"
 b_tip += "──────────────────\n"
 b_tip += "TIMEFRAME ALIGNMENT:\n"
 b_tip += tip_1d + "\n"
@@ -365,7 +345,59 @@ b_tip += "──────────────────\n"
 b_tip += "SAFETY SWITCH:\n"
 b_tip += safety_note
 
+// --- Real-Time Live Displacement & Velocity Engine ---
+var int tick_toggle = 0
+if barstate.isrealtime
+    tick_toggle := (tick_toggle + 1) % 2
+
+float curr_move = close - open
+float curr_abs_move = math.abs(curr_move)
+bool is_live_disp = curr_abs_move >= i_dispThreshold
+
+var int last_disp_bar = -999
+var float last_disp_pts = 0.0
+var bool last_disp_bull = false
+
+if barstate.isconfirmed and math.abs(close - open) >= i_dispThreshold
+    last_disp_bar := bar_index
+    last_disp_pts := close - open
+    last_disp_bull := close > open
+
+// Alert Trigger: Immediate chime on first tick breaching threshold
+var int last_alert_bar = -1
+if is_live_disp and bar_index != last_alert_bar
+    last_alert_bar := bar_index
+    string dir_str = curr_move > 0 ? "Bullish +" : "Bearish -"
+    string alert_msg = "⚡ DISPLACEMENT ALERT: " + dir_str + str.tostring(curr_abs_move, "#.##") + " pts on " + syminfo.ticker + " (" + timeframe.period + "m)"
+    alert(alert_msg, alert.freq_once_per_bar)
+
+// Determine Displacement Pill State
+bool show_disp_pill = false
+string disp_text = ""
+color disp_bg = color(na)
+color disp_txt_col = color.white
+
+if is_live_disp
+    show_disp_pill := true
+    bool live_bull = curr_move > 0
+    int elapsed_sec = barstate.isrealtime ? math.max(1, math.min(60, int((timenow - time) / 1000))) : 60
+    disp_text := "⚡ LIVE DISP: " + (live_bull ? "+" : "") + str.tostring(curr_move, "#.#") + " pts " + (live_bull ? "▲" : "▼") + " (" + str.tostring(elapsed_sec) + "s)"
+    // Real-time strobe blinking between neon colors on each tick
+    if live_bull
+        disp_bg := tick_toggle == 0 ? #00e676 : #ffea00 // Electric Green <-> Neon Yellow
+        disp_txt_col := color.black
+    else
+        disp_bg := tick_toggle == 0 ? #ff1744 : #ffea00 // Electric Red <-> Neon Yellow
+        disp_txt_col := color.black
+else if (bar_index - last_disp_bar) <= i_dispMemory and last_disp_bar > 0
+    show_disp_pill := true
+    int bars_ago = bar_index - last_disp_bar
+    disp_text := "⚡ DISP: " + (last_disp_bull ? "+" : "") + str.tostring(last_disp_pts, "#.#") + " pts " + (last_disp_bull ? "▲" : "▼") + " [" + str.tostring(bars_ago) + "m ago]"
+    disp_bg := last_disp_bull ? #089981 : #f23645 // Solid Green / Red
+    disp_txt_col := color.white
+
 int target_row = i_vOffset == "Mobile" ? 1 : 0
+int disp_row = (i_badgeStyle == "Full Details Card (Mobile Friendly)" ? target_row + 4 : target_row + 1)
 
 if barstate.islast
     if i_showBias
@@ -377,19 +409,24 @@ if barstate.islast
         if i_badgeStyle == "Full Details Card (Mobile Friendly)"
             color card_bg = #1e222d
             table.cell(bias_tbl, 0, target_row, pill_title, text_color=color.white, text_size=f_get_size(i_biasSize), bgcolor=b_color, tooltip=b_tip)
-            table.cell(bias_tbl, 0, target_row + 1, "Regime: " + regime_str, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
-            table.cell(bias_tbl, 0, target_row + 2, trend_summary, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
-            table.cell(bias_tbl, 0, target_row + 3, anchor_summary, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
-            table.cell(bias_tbl, 0, target_row + 4, "Switch: " + safety_note, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
+            table.cell(bias_tbl, 0, target_row + 1, trend_summary, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
+            table.cell(bias_tbl, 0, target_row + 2, anchor_summary, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
+            table.cell(bias_tbl, 0, target_row + 3, "Switch: " + safety_note, text_color=color.white, text_size=size.small, bgcolor=card_bg, text_halign=text.align_left)
         else
             string badge_cell_text = pill_title
             if i_badgeStyle == "Pill + Subtitle (Mobile Friendly)"
-                badge_cell_text += "\n" + regime_short + " • " + safety_short
+                badge_cell_text += "\n" + safety_short
             table.cell(bias_tbl, 0, target_row, badge_cell_text, text_color=color.white, text_size=f_get_size(i_biasSize), bgcolor=b_color, tooltip=b_tip)
+        
+        // Option A: Displacement / Velocity Pill stacked directly below Sentiment Badge
+        if i_showDisp and show_disp_pill
+            table.cell(bias_tbl, 0, disp_row, disp_text, text_color=disp_txt_col, text_size=f_get_size(i_biasSize), bgcolor=disp_bg)
+        else
+            table.cell(bias_tbl, 0, disp_row, "", bgcolor=color(na))
     else
         table.clear(bias_tbl, 0, 0, 0, 7)
 
 // Output to Data Window for Mobile inspection without chart clutter
 plot(bias_score, title="Market Sentiment Score", display=display.data_window)
-plot(not na(m15_adx) ? m15_adx : na, title="15m ADX", display=display.data_window)
+plot(is_live_disp ? curr_abs_move : na, title="Displacement Move (Pts)", display=display.data_window)
 
