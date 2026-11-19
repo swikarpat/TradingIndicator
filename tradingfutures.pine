@@ -45,7 +45,7 @@ grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",grou
 grp_rthg = "RTHG Settings", i_showRthg = input.bool(true,"Show Regular Trading Hours Gap",group=grp_rthg), i_rthgCount = input.int(6,"How many RTH gaps to show",minval=1,group=grp_rthg), i_rthgLines = input.string("CE","Show RTH Gap Lines",options=["None","CE","Quadrant"],group=grp_rthg), i_rthgColor = input.color(color.new(#00b9d0,90),"RTH Gap color",group=grp_rthg), i_rthgTxtColor = input.color(#008f9c,"Text",inline="rthg_t",group=grp_rthg), i_rthgText = input.string("RTHG","",inline="rthg_t",group=grp_rthg), i_rthgTxtSize = input.string("tiny","",options=["tiny","small","normal","large"],inline="rthg_t",group=grp_rthg), i_rthgBorderCol = input.color(#00b9d0,"Border",inline="rthg_b",group=grp_rthg), i_rthgBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_b",group=grp_rthg), i_rthgBorderWidth = input.int(0,"",minval=0,inline="rthg_b",group=grp_rthg), i_rthgLineCol = input.color(#00b9d0,"Lines",inline="rthg_l",group=grp_rthg), i_rthgLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_l",group=grp_rthg), i_rthgLineWidth = input.int(1,"",minval=1,inline="rthg_l",group=grp_rthg), i_rthSess = input.session("0930-1615","Market Hours (EST)",group=grp_rthg,tooltip="RTH session hours in EST/EDT")
 grp_ny = "NY Midnight Open Settings", i_showNy = input.bool(true,"Show NY Midnight Open",group=grp_ny)
 grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop", "Platform / Spacing", options=["Desktop", "Mobile"], group=grp_bias, tooltip="Select 'Mobile' to push the badge down below the mobile header.")
-grp_disp = "Displacement / Velocity Badge", i_showDisp = input.bool(true, "Show Velocity Badge", group=grp_disp), i_enableAlert = input.bool(true, "Enable Audio Chime Alert", group=grp_disp), i_dispThreshold = input.float(10.0, "Displacement Threshold (Handles/Pts)", minval=1.0, step=1.0, group=grp_disp, tooltip="Points moved within a 1-minute candle to trigger displacement badge."), i_dispMemory = input.int(2, "Badge Memory (Bars)", minval=0, maxval=10, group=grp_disp, tooltip="How many bars to keep the badge visible after the candle closes (0 = live bar only).")
+grp_disp = "Displacement / Velocity Badge", i_showDisp = input.bool(true, "Show Velocity Badge", group=grp_disp), i_dispThreshold = input.float(10.0, "Displacement Threshold (Handles/Pts)", minval=1.0, step=1.0, group=grp_disp, tooltip="Points moved within a 1-minute candle to trigger displacement badge."), i_dispMemory = input.int(2, "Badge Memory (Bars)", minval=0, maxval=10, group=grp_disp, tooltip="How many bars to keep the badge visible after the candle closes (0 = live bar only).")
 
 // --- HTF Data Fetchers ---
 f_fetch_htf_gaps(int count) =>
@@ -340,14 +340,6 @@ if barstate.isconfirmed and timeframe.isintraday and math.abs(close - open) >= i
     last_disp_bar := bar_index
     last_disp_pts := close - open
     last_disp_bull := close > open
-
-// Alert Trigger: Immediate chime on first tick breaching threshold
-var int last_alert_bar = -1
-if i_enableAlert and is_live_disp and bar_index != last_alert_bar
-    last_alert_bar := bar_index
-    string dir_str = curr_move > 0 ? "Bullish +" : "Bearish -"
-    string alert_msg = "⚡ " + dir_str + str.tostring(curr_abs_move, "#.#") + " pts on " + syminfo.ticker
-    alert(alert_msg, alert.freq_once_per_bar)
 
 // Determine Displacement Pill State
 bool show_disp_pill = false
