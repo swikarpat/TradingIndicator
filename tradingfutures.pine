@@ -330,13 +330,13 @@ if barstate.isrealtime
 
 float curr_move = close - open
 float curr_abs_move = math.abs(curr_move)
-bool is_live_disp = curr_abs_move >= i_dispThreshold
+bool is_live_disp = timeframe.isintraday and (curr_abs_move >= i_dispThreshold)
 
 var int last_disp_bar = -999
 var float last_disp_pts = 0.0
 var bool last_disp_bull = false
 
-if barstate.isconfirmed and math.abs(close - open) >= i_dispThreshold
+if barstate.isconfirmed and timeframe.isintraday and math.abs(close - open) >= i_dispThreshold
     last_disp_bar := bar_index
     last_disp_pts := close - open
     last_disp_bull := close > open
