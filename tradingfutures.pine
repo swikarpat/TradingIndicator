@@ -341,6 +341,14 @@ if barstate.isconfirmed and timeframe.isintraday and math.abs(close - open) >= i
     last_disp_pts := close - open
     last_disp_bull := close > open
 
+// Alert Trigger: Immediate chime on first tick breaching threshold
+var int last_alert_bar = -1
+if i_showDisp and is_live_disp and bar_index != last_alert_bar
+    last_alert_bar := bar_index
+    string dir_str = curr_move > 0 ? "Bullish +" : "Bearish -"
+    string alert_msg = "⚡ " + dir_str + str.tostring(curr_abs_move, "#.#") + " pts on " + syminfo.ticker
+    alert(alert_msg, alert.freq_once_per_bar)
+
 // Determine Displacement Pill State
 bool show_disp_pill = false
 string disp_text = ""
