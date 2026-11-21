@@ -45,7 +45,6 @@ grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",grou
 grp_rthg = "RTHG Settings", i_showRthg = input.bool(true,"Show Regular Trading Hours Gap",group=grp_rthg), i_rthgCount = input.int(6,"How many RTH gaps to show",minval=1,group=grp_rthg), i_rthgLines = input.string("CE","Show RTH Gap Lines",options=["None","CE","Quadrant"],group=grp_rthg), i_rthgColor = input.color(color.new(#00b9d0,90),"RTH Gap color",group=grp_rthg), i_rthgTxtColor = input.color(#008f9c,"Text",inline="rthg_t",group=grp_rthg), i_rthgText = input.string("RTHG","",inline="rthg_t",group=grp_rthg), i_rthgTxtSize = input.string("tiny","",options=["tiny","small","normal","large"],inline="rthg_t",group=grp_rthg), i_rthgBorderCol = input.color(#00b9d0,"Border",inline="rthg_b",group=grp_rthg), i_rthgBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_b",group=grp_rthg), i_rthgBorderWidth = input.int(0,"",minval=0,inline="rthg_b",group=grp_rthg), i_rthgLineCol = input.color(#00b9d0,"Lines",inline="rthg_l",group=grp_rthg), i_rthgLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_l",group=grp_rthg), i_rthgLineWidth = input.int(1,"",minval=1,inline="rthg_l",group=grp_rthg), i_rthSess = input.session("0930-1615","Market Hours (EST)",group=grp_rthg,tooltip="RTH session hours in EST/EDT")
 grp_ny = "NY Midnight Open Settings", i_showNy = input.bool(true,"Show NY Midnight Open",group=grp_ny)
 grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop", "Platform / Spacing", options=["Desktop", "Mobile"], group=grp_bias, tooltip="Select 'Mobile' to push the badge down below the mobile header.")
-grp_disp = "Displacement / Velocity Badge", i_showDisp = input.bool(true, "Show Velocity Badge", group=grp_disp), i_dispThreshold = input.float(10.0, "Displacement Threshold (Handles/Pts)", minval=1.0, step=1.0, group=grp_disp, tooltip="Points moved within a 1-minute candle to trigger displacement badge."), i_dispMemory = input.int(2, "Badge Memory (Bars)", minval=0, maxval=10, group=grp_disp, tooltip="How many bars to keep the badge visible after the candle closes (0 = live bar only).")
 
 // --- HTF Data Fetchers ---
 f_fetch_htf_gaps(int count) =>
@@ -234,7 +233,7 @@ plot(i_showMas ? ema_out : na, title="EMA", color=i_emaColor, display=display.pr
 
 // --- Market Sentiment Banner Engine ---
 tbl_pos = i_biasPos == "Top Left" ? position.top_left : i_biasPos == "Bottom Right" ? position.bottom_right : i_biasPos == "Bottom Left" ? position.bottom_left : position.top_right
-var table bias_tbl = table.new(tbl_pos, 1, 8, bgcolor=color(na), border_width=0)
+var table bias_tbl = table.new(tbl_pos, 1, 3, bgcolor=color(na), border_width=0)
 
 float active_ndog_ce = array.size(d_tops) > 0 ? math.avg(array.get(d_tops, 0), array.get(d_btms, 0)) : na
 
@@ -323,70 +322,18 @@ b_tip += "──────────────────\n"
 b_tip += "SAFETY SWITCH:\n"
 b_tip += safety_note
 
-// --- Real-Time Live Displacement & Velocity Engine ---
-var int tick_toggle = 0
-if barstate.isrealtime
-    tick_toggle := (tick_toggle + 1) % 2
-
-float curr_move = close - open
-float curr_abs_move = math.abs(curr_move)
-bool is_live_disp = timeframe.isintraday and (curr_abs_move >= i_dispThreshold)
-
-var int last_disp_bar = -999
-var float last_disp_pts = 0.0
-var bool last_disp_bull = false
-
-if barstate.isconfirmed and timeframe.isintraday and math.abs(close - open) >= i_dispThreshold
-    last_disp_bar := bar_index
-    last_disp_pts := close - open
-    last_disp_bull := close > open
-
-// Determine Displacement Pill State
-bool show_disp_pill = false
-string disp_text = ""
-color disp_bg = color(na)
-color disp_txt_col = color.white
-
-if is_live_disp
-    show_disp_pill := true
-    bool live_bull = curr_move > 0
-    int elapsed_sec = barstate.isrealtime ? math.max(1, math.min(60, int((timenow - time) / 1000))) : 60
-    disp_text := "⚡ LIVE DISP: " + (live_bull ? "+" : "") + str.tostring(curr_move, "#.#") + " pts " + (live_bull ? "▲" : "▼") + " (" + str.tostring(elapsed_sec) + "s)"
-    // Real-time strobe blinking between neon colors on each tick
-    if live_bull
-        disp_bg := tick_toggle == 0 ? #00e676 : #ffea00 // Electric Green <-> Neon Yellow
-        disp_txt_col := color.black
-    else
-        disp_bg := tick_toggle == 0 ? #ff1744 : #ffea00 // Electric Red <-> Neon Yellow
-        disp_txt_col := color.black
-else if (bar_index - last_disp_bar) <= i_dispMemory and last_disp_bar > 0
-    show_disp_pill := true
-    int bars_ago = bar_index - last_disp_bar
-    disp_text := "⚡ DISP: " + (last_disp_bull ? "+" : "") + str.tostring(last_disp_pts, "#.#") + " pts " + (last_disp_bull ? "▲" : "▼") + " [" + str.tostring(bars_ago) + "m ago]"
-    disp_bg := last_disp_bull ? #089981 : #f23645 // Solid Green / Red
-    disp_txt_col := color.white
-
 int offset_rows = i_vOffset == "Mobile" ? 1 : 0
 
 if barstate.islast
-    table.clear(bias_tbl, 0, 0, 0, 7)
+    table.clear(bias_tbl, 0, 0, 0, 2)
     
     if offset_rows > 0
         table.cell(bias_tbl, 0, 0, " ", text_size=size.normal, bgcolor=color(na))
     
-    int current_row = offset_rows
-    
-    // 1. Sentiment Badge (Compact Pill with built-in score)
+    // Sentiment Badge (Compact Pill with built-in score)
     if i_showBias
-        table.cell(bias_tbl, 0, current_row, pill_title, text_color=color.white, text_size=f_get_size(i_biasSize), bgcolor=b_color, tooltip=b_tip)
-        current_row += 1
-    
-    // 2. Velocity Alert Badge (Completely independent from Sentiment Badge)
-    if i_showDisp and show_disp_pill
-        table.cell(bias_tbl, 0, current_row, disp_text, text_color=disp_txt_col, text_size=f_get_size(i_biasSize), bgcolor=disp_bg)
-        current_row += 1
+        table.cell(bias_tbl, 0, offset_rows, pill_title, text_color=color.white, text_size=f_get_size(i_biasSize), bgcolor=b_color, tooltip=b_tip)
 
 // Output to Data Window for Mobile inspection without chart clutter
 plot(bias_score, title="Market Sentiment Score", display=display.data_window)
-plot(is_live_disp ? curr_abs_move : na, title="Displacement Move (Pts)", display=display.data_window)
 
