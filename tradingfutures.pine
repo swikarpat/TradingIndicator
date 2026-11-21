@@ -292,11 +292,11 @@ if not na(active_ndog_ce)
 // Safety Switch (Decision factors)
 string safety_note = ""
 if bias_score >= 5
-    safety_note := "🛑 Strong bullish run (+5/7). Avoid heavy shorts!"
+    safety_note := "🟢 Strong bullish run (+5/7). Avoid heavy shorts!"
 else if not na(m15_ema) and close < m15_ema and not na(openprice) and close >= openprice
     safety_note := "🟢 Prime Short: 15m momentum crack above midnight open."
 else if bias_score <= -5
-    safety_note := "📉 Strong bearish run (-5/7). Avoid heavy longs!"
+    safety_note := "🔴 Strong bearish run (-5/7). Avoid heavy longs!"
 else
     safety_note := "⚖️ Normal: Standard mean-reversion rules apply."
 
