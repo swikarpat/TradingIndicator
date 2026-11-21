@@ -235,6 +235,7 @@ plot(i_showMas ? ema_out : na, title="EMA", color=i_emaColor, display=display.pr
 tbl_pos = i_biasPos == "Top Left" ? position.top_left : i_biasPos == "Bottom Right" ? position.bottom_right : i_biasPos == "Bottom Left" ? position.bottom_left : position.top_right
 var table bias_tbl = table.new(tbl_pos, 1, 3, bgcolor=color(na), border_width=0)
 
+float active_nwog_ce = array.size(w_tops) > 0 ? math.avg(array.get(w_tops, 0), array.get(w_btms, 0)) : na
 float active_ndog_ce = array.size(d_tops) > 0 ? math.avg(array.get(d_tops, 0), array.get(d_btms, 0)) : na
 
 int bias_score = 0
@@ -244,6 +245,7 @@ string tip_1h_sma = ""
 string tip_15m = ""
 string tip_6pm = ""
 string tip_ny = ""
+string tip_nwog = ""
 string tip_ndog = ""
 
 // 1. 1D Macro Trend (20 EMA)
@@ -283,7 +285,13 @@ if not na(openprice) and openprice > 0
     bias_score += (is_b ? 1 : -1)
     tip_ny := "• NY Midnight (" + str.tostring(math.round_to_mintick(openprice)) + "): " + (is_b ? "Bullish" : "Bearish")
 
-// 7. Active NDOG CE
+// 7. Active NWOG CE
+if not na(active_nwog_ce)
+    bool is_b = close >= active_nwog_ce
+    bias_score += (is_b ? 1 : -1)
+    tip_nwog := "• Active NWOG (" + str.tostring(math.round_to_mintick(active_nwog_ce)) + "): " + (is_b ? "Bullish" : "Bearish")
+
+// 8. Active NDOG CE
 if not na(active_ndog_ce)
     bool is_b = close >= active_ndog_ce
     bias_score += (is_b ? 1 : -1)
@@ -291,22 +299,22 @@ if not na(active_ndog_ce)
 
 // Safety Switch (Decision factors)
 string safety_note = ""
-if bias_score >= 5
-    safety_note := "🟢 Strong bullish run (+5/7). Avoid heavy shorts!"
+if bias_score >= 6
+    safety_note := "🟢 Strong bullish run (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/8). Avoid heavy shorts!"
 else if not na(m15_ema) and close < m15_ema and not na(openprice) and close >= openprice
     safety_note := "🟢 Prime Short: 15m momentum crack above midnight open."
-else if bias_score <= -5
-    safety_note := "🔴 Strong bearish run (-5/7). Avoid heavy longs!"
+else if bias_score <= -6
+    safety_note := "🔴 Strong bearish run (" + str.tostring(bias_score) + "/8). Avoid heavy longs!"
 else
     safety_note := "⚖️ Normal: Standard mean-reversion rules apply."
 
 string b_text = bias_score > 0 ? "BULLISH" : bias_score < 0 ? "BEARISH" : "NEUTRAL"
-string score_tag = " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/7)"
+string score_tag = " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/8)"
 string pill_title = b_text + score_tag
 color b_color = bias_score > 0 ? #089981 : bias_score < 0 ? #f23645 : #5d606b
 
 string b_tip = "─── MARKET SENTIMENT ───\n"
-b_tip += "Verdict: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/7)\n"
+b_tip += "Verdict: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/8)\n"
 b_tip += "──────────────────\n"
 b_tip += "TIMEFRAME ALIGNMENT:\n"
 b_tip += tip_1d + "\n"
@@ -317,6 +325,7 @@ b_tip += "──────────────────\n"
 b_tip += "ICT ANCHORS:\n"
 b_tip += tip_6pm + "\n"
 b_tip += tip_ny + "\n"
+b_tip += tip_nwog + "\n"
 b_tip += tip_ndog + "\n"
 b_tip += "──────────────────\n"
 b_tip += "SAFETY SWITCH:\n"
