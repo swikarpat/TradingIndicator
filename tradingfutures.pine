@@ -235,8 +235,15 @@ plot(i_showMas ? ema_out : na, title="EMA", color=i_emaColor, display=display.pr
 tbl_pos = i_biasPos == "Top Left" ? position.top_left : i_biasPos == "Bottom Right" ? position.bottom_right : i_biasPos == "Bottom Left" ? position.bottom_left : position.top_right
 var table bias_tbl = table.new(tbl_pos, 1, 3, bgcolor=color(na), border_width=0)
 
-float active_nwog_ce = array.size(w_tops) > 0 ? math.avg(array.get(w_tops, 0), array.get(w_btms, 0)) : na
-float active_ndog_ce = array.size(d_tops) > 0 ? math.avg(array.get(d_tops, 0), array.get(d_btms, 0)) : na
+float active_nwog_ce = na
+if not na(w_tops) and not na(w_btms)
+    if array.size(w_tops) > 0 and array.size(w_btms) > 0
+        active_nwog_ce := math.avg(array.get(w_tops, 0), array.get(w_btms, 0))
+
+float active_ndog_ce = na
+if not na(d_tops) and not na(d_btms)
+    if array.size(d_tops) > 0 and array.size(d_btms) > 0
+        active_ndog_ce := math.avg(array.get(d_tops, 0), array.get(d_btms, 0))
 
 int bias_score = 0
 string tip_1d = ""
