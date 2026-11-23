@@ -44,7 +44,12 @@ grp_ndog = "NDOG Settings", i_showNdog = input.bool(true, "Show NDOG", group=grp
 color c_ndog = color.new(#ba68c8, 90)
 
 grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",group=grp_gen)
-grp_rthg = "RTHG Settings", i_showRthg = input.bool(true,"Show Regular Trading Hours Gap",group=grp_rthg), i_rthgCount = input.int(6,"How many RTH gaps to show",minval=1,group=grp_rthg), i_rthgLines = input.string("CE","Show RTH Gap Lines",options=["None","CE","Quadrant"],group=grp_rthg), i_rthgColor = input.color(color.new(#00b9d0,90),"RTH Gap color",group=grp_rthg), i_rthgTxtColor = input.color(#008f9c,"Text",inline="rthg_t",group=grp_rthg), i_rthgText = input.string("RTHG","",inline="rthg_t",group=grp_rthg), i_rthgTxtSize = input.string("tiny","",options=["tiny","small","normal","large"],inline="rthg_t",group=grp_rthg), i_rthgBorderCol = input.color(#00b9d0,"Border",inline="rthg_b",group=grp_rthg), i_rthgBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_b",group=grp_rthg), i_rthgBorderWidth = input.int(0,"",minval=0,inline="rthg_b",group=grp_rthg), i_rthgLineCol = input.color(#00b9d0,"Lines",inline="rthg_l",group=grp_rthg), i_rthgLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_l",group=grp_rthg), i_rthgLineWidth = input.int(1,"",minval=1,inline="rthg_l",group=grp_rthg), i_rthSess = input.session("0930-1615","Market Hours (EST)",group=grp_rthg,tooltip="RTH session hours in EST/EDT")
+grp_rthg = "RTHG Settings", i_showRthg = input.bool(true, "Show Regular Trading Hours Gap", group=grp_rthg)
+color c_rthg = color.new(#00b9d0, 90)
+color c_rthg_border = #00b9d0
+color c_rthg_line = #00b9d0
+color c_rthg_txt = #008f9c
+string rth_sess = "0930-1615"
 grp_ny = "NY Midnight Open Settings", i_showNy = input.bool(true,"Show NY Midnight Open",group=grp_ny)
 grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop", "Platform / Spacing", options=["Desktop", "Mobile"], group=grp_bias, tooltip="Select 'Mobile' to push the badge down below the mobile header.")
 
@@ -63,7 +68,7 @@ f_fetch_htf_gaps(int count) =>
 
 f_fetch_rth_arrays() =>
     var float[] tops = array.new<float>(0), var float[] btms = array.new<float>(0), var int[] tms = array.new<int>(0)
-    in_r = not na(time(timeframe.period, i_rthSess + ":23456", "America/New_York"))
+    in_r = not na(time(timeframe.period, rth_sess + ":23456", "America/New_York"))
     var float prev_c = na
     if in_r[1] and not in_r
         prev_c := close[1]
@@ -144,12 +149,12 @@ if (barstate.islast or timeframe.change("15")) and i_showRthg and show_draws
         f_delete_gap(g)
     array.clear(rthg_gaps)
     if not na(r_tops) and not na(r_btms) and not na(r_tms)
-        limit = math.min(i_rthgCount, array.size(r_tops))
+        limit = math.min(6, array.size(r_tops))
         if limit > 0
             for i = 0 to limit - 1
                 tm = array.get(r_tms, i), d = dayofweek(tm, "America/New_York"), ds = d == dayofweek.monday ? "MON" : d == dayofweek.tuesday ? "TUE" : d == dayofweek.wednesday ? "WED" : d == dayofweek.thursday ? "THU" : d == dayofweek.friday ? "FRI" : ""
-                txt = ds != "" ? i_rthgText + " " + ds + "/" + str.format_time(tm, "dd", "America/New_York") : ""
-                g = f_create_gap(array.get(r_tops, i), array.get(r_btms, i), tm, i_rthgLines, i_rthgColor, i_rthgBorderCol, i_rthgBorderStyle, i_rthgBorderWidth, i_rthgLineCol, i_rthgLineStyle, i_rthgLineWidth, txt, i_rthgTxtColor, i_rthgTxtSize)
+                txt = ds != "" ? "RTHG " + ds + "/" + str.format_time(tm, "dd", "America/New_York") : ""
+                g = f_create_gap(array.get(r_tops, i), array.get(r_btms, i), tm, "CE", c_rthg, c_rthg_border, "solid (—)", 0, c_rthg_line, "dashed (---)", 1, txt, c_rthg_txt, "tiny")
                 if i > 0
                     box.set_bgcolor(g.b, na), box.set_border_color(g.b, na)
                 array.push(rthg_gaps, g)
