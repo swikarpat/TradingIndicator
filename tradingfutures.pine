@@ -40,7 +40,8 @@ i_emaColor = input.color(#5b9cf6,"EMA",inline="ema_main",group=grp_ma), i_emaLen
 
 grp_nwog = "NWOG Settings", i_showNwog = input.bool(true, "Show NWOG", group=grp_nwog)
 color c_nwog = color.new(#2962ff, 90)
-grp_ndog = "NDOG Settings", i_showNdog = input.bool(true,"Show NDOG",group=grp_ndog), i_ndogCount = input.int(5,"Amount",minval=1,group=grp_ndog), i_ndogLines = input.string("CE","Show Lines",options=["None","CE","Quadrant"],group=grp_ndog), i_ndogColorBull = input.color(color.new(#ba68c8, 90),"Gaps Colors",inline="ndog_col",group=grp_ndog), i_ndogColorBear = input.color(color.new(#ba68c8, 90),"",inline="ndog_col",group=grp_ndog), i_ndogBorderCol = input.color(color.new(#ba68c8, 90),"Border",inline="ndog_b",group=grp_ndog), i_ndogBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="ndog_b",group=grp_ndog), i_ndogBorderWidth = input.int(1,"",minval=0,inline="ndog_b",group=grp_ndog), i_ndogLineCol = input.color(color.new(#ba68c8, 90),"Lines",inline="ndog_l",group=grp_ndog), i_ndogLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="ndog_l",group=grp_ndog), i_ndogLineWidth = input.int(1,"",minval=1,inline="ndog_l",group=grp_ndog)
+grp_ndog = "NDOG Settings", i_showNdog = input.bool(true, "Show NDOG", group=grp_ndog)
+color c_ndog = color.new(#ba68c8, 90)
 
 grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",group=grp_gen)
 grp_rthg = "RTHG Settings", i_showRthg = input.bool(true,"Show Regular Trading Hours Gap",group=grp_rthg), i_rthgCount = input.int(6,"How many RTH gaps to show",minval=1,group=grp_rthg), i_rthgLines = input.string("CE","Show RTH Gap Lines",options=["None","CE","Quadrant"],group=grp_rthg), i_rthgColor = input.color(color.new(#00b9d0,90),"RTH Gap color",group=grp_rthg), i_rthgTxtColor = input.color(#008f9c,"Text",inline="rthg_t",group=grp_rthg), i_rthgText = input.string("RTHG","",inline="rthg_t",group=grp_rthg), i_rthgTxtSize = input.string("tiny","",options=["tiny","small","normal","large"],inline="rthg_t",group=grp_rthg), i_rthgBorderCol = input.color(#00b9d0,"Border",inline="rthg_b",group=grp_rthg), i_rthgBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_b",group=grp_rthg), i_rthgBorderWidth = input.int(0,"",minval=0,inline="rthg_b",group=grp_rthg), i_rthgLineCol = input.color(#00b9d0,"Lines",inline="rthg_l",group=grp_rthg), i_rthgLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="rthg_l",group=grp_rthg), i_rthgLineWidth = input.int(1,"",minval=1,inline="rthg_l",group=grp_rthg), i_rthSess = input.session("0930-1615","Market Hours (EST)",group=grp_rthg,tooltip="RTH session hours in EST/EDT")
@@ -96,7 +97,7 @@ f_create_gap(top_val, btm_val, start_t, lines_type, bg_col, border_col, border_s
 
 var ehpda_array = array.new<EhpdaObj>()
 if barstate.isfirst
-    for i = 0 to i_ndogCount
+    for i = 0 to 5
         array.push(ehpda_array, EhpdaObj.new(line.new(na,na,na,na,color=#787b86,style=line.style_dashed,extend=extend.none,xloc=xloc.bar_time), label.new(na,na,"",color=color(na),style=label.style_label_left,textcolor=#787b86,size=size.tiny,xloc=xloc.bar_time)))
 
 f_update_ehpda(array<GapObject> gaps) =>
@@ -135,7 +136,7 @@ if (barstate.islast or timeframe.change("D")) and i_showNdog and show_draws
     for g in ndog_gaps
         f_delete_gap(g)
     array.clear(ndog_gaps)
-    ndog_gaps := f_draw_htf_gaps(d_tops, d_btms, d_tms, d_bulls, i_ndogCount, i_ndogLines, i_ndogColorBull, i_ndogColorBear, i_ndogBorderCol, i_ndogBorderStyle, i_ndogBorderWidth, i_ndogLineCol, i_ndogLineStyle, i_ndogLineWidth)
+    ndog_gaps := f_draw_htf_gaps(d_tops, d_btms, d_tms, d_bulls, 5, "CE", c_ndog, c_ndog, c_ndog, "solid (—)", 1, c_ndog, "dashed (---)", 1)
     f_update_ehpda(ndog_gaps)
 
 if (barstate.islast or timeframe.change("15")) and i_showRthg and show_draws
