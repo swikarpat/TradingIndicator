@@ -51,7 +51,7 @@ color c_rthg_line = #00b9d0
 color c_rthg_txt = #008f9c
 string rth_sess = "0930-1615"
 grp_ny = "NY Midnight Open Settings", i_showNy = input.bool(true,"Show NY Midnight Open",group=grp_ny)
-grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias), i_biasPos = input.string("Top Right", "Badge Position", options=["Top Right","Top Left","Bottom Right","Bottom Left"], group=grp_bias), i_biasSize = input.string("normal", "Badge Size", options=["small","normal","large"], group=grp_bias), i_vOffset = input.string("Desktop", "Platform / Spacing", options=["Desktop", "Mobile"], group=grp_bias, tooltip="Select 'Mobile' to push the badge down below the mobile header.")
+grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias)
 
 // --- HTF Data Fetchers ---
 f_fetch_htf_gaps(int count) =>
@@ -239,8 +239,7 @@ plot(i_showMas ? sma_out : na, title="SMA", color=i_smaColor, display=display.pr
 plot(i_showMas ? ema_out : na, title="EMA", color=i_emaColor, display=display.price_scale)
 
 // --- Market Sentiment Banner Engine ---
-tbl_pos = i_biasPos == "Top Left" ? position.top_left : i_biasPos == "Bottom Right" ? position.bottom_right : i_biasPos == "Bottom Left" ? position.bottom_left : position.top_right
-var table bias_tbl = table.new(tbl_pos, 1, 3, bgcolor=color(na), border_width=0)
+var table bias_tbl = table.new(position.top_right, 1, 1, bgcolor=color(na), border_width=0)
 
 float active_nwog_ce = na
 if not na(w_tops) and not na(w_btms)
@@ -345,17 +344,12 @@ b_tip += "──────────────────\n"
 b_tip += "SAFETY SWITCH:\n"
 b_tip += safety_note
 
-int offset_rows = i_vOffset == "Mobile" ? 1 : 0
-
 if barstate.islast
-    table.clear(bias_tbl, 0, 0, 0, 2)
-    
-    if offset_rows > 0
-        table.cell(bias_tbl, 0, 0, " ", text_size=size.normal, bgcolor=color(na))
+    table.clear(bias_tbl, 0, 0, 0, 0)
     
     // Sentiment Badge (Compact Pill with built-in score)
     if i_showBias
-        table.cell(bias_tbl, 0, offset_rows, pill_title, text_color=color.white, text_size=f_get_size(i_biasSize), bgcolor=b_color, tooltip=b_tip)
+        table.cell(bias_tbl, 0, 0, pill_title, text_color=color.white, text_size=size.normal, bgcolor=b_color, tooltip=b_tip)
 
 // Output to Data Window for Mobile inspection without chart clutter
 plot(bias_score, title="Market Sentiment Score", display=display.data_window)
