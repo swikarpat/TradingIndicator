@@ -54,6 +54,7 @@ color c_rthg_txt = #008f9c
 string rth_sess = "0930-1615"
 
 i_showNy = input.bool(true, "Show NY Midnight Open")
+
 i_offset = input.int(50, "Label Offset (Bars)")
 
 // --- HTF Data Fetchers ---
