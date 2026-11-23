@@ -38,7 +38,8 @@ grp_ma = "Moving Averages Settings", i_showMas = input.bool(false, "Show EMA/SMA
 i_smaColor = input.color(#42bda8,"SMA",inline="sma_main",group=grp_ma), i_smaLen = input.int(200,minval=1,title="",inline="sma_main",group=grp_ma)
 i_emaColor = input.color(#5b9cf6,"EMA",inline="ema_main",group=grp_ma), i_emaLen = input.int(50,minval=1,title="",inline="ema_main",group=grp_ma)
 
-grp_nwog = "NWOG Settings", i_showNwog = input.bool(true,"Show NWOG",group=grp_nwog), i_nwogCount = input.int(5,"Amount",minval=1,group=grp_nwog), i_nwogLines = input.string("CE","Show Lines",options=["None","CE","Quadrant"],group=grp_nwog), i_nwogColorBull = input.color(color.new(#5b9cf6, 90),"Gaps Colors",inline="nwog_col",group=grp_nwog), i_nwogColorBear = input.color(color.new(#5b9cf6, 90),"",inline="nwog_col",group=grp_nwog), i_nwogBorderCol = input.color(color.new(#5b9cf6, 90),"Border",inline="nwog_b",group=grp_nwog), i_nwogBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="nwog_b",group=grp_nwog), i_nwogBorderWidth = input.int(1,"",minval=0,inline="nwog_b",group=grp_nwog), i_nwogLineCol = input.color(color.new(#5b9cf6, 90),"Lines",inline="nwog_l",group=grp_nwog), i_nwogLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="nwog_l",group=grp_nwog), i_nwogLineWidth = input.int(1,"",minval=1,inline="nwog_l",group=grp_nwog)
+grp_nwog = "NWOG Settings", i_showNwog = input.bool(true, "Show NWOG", group=grp_nwog)
+color c_nwog = color.new(#2962ff, 90)
 grp_ndog = "NDOG Settings", i_showNdog = input.bool(true,"Show NDOG",group=grp_ndog), i_ndogCount = input.int(5,"Amount",minval=1,group=grp_ndog), i_ndogLines = input.string("CE","Show Lines",options=["None","CE","Quadrant"],group=grp_ndog), i_ndogColorBull = input.color(color.new(#ba68c8, 90),"Gaps Colors",inline="ndog_col",group=grp_ndog), i_ndogColorBear = input.color(color.new(#ba68c8, 90),"",inline="ndog_col",group=grp_ndog), i_ndogBorderCol = input.color(color.new(#ba68c8, 90),"Border",inline="ndog_b",group=grp_ndog), i_ndogBorderStyle = input.string("solid (—)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="ndog_b",group=grp_ndog), i_ndogBorderWidth = input.int(1,"",minval=0,inline="ndog_b",group=grp_ndog), i_ndogLineCol = input.color(color.new(#ba68c8, 90),"Lines",inline="ndog_l",group=grp_ndog), i_ndogLineStyle = input.string("dashed (---)","",options=["solid (—)","dotted (...)","dashed (---)"],inline="ndog_l",group=grp_ndog), i_ndogLineWidth = input.int(1,"",minval=1,inline="ndog_l",group=grp_ndog)
 
 grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",group=grp_gen)
@@ -128,7 +129,7 @@ if (barstate.islast or timeframe.change("W")) and i_showNwog and show_draws
     for g in nwog_gaps
         f_delete_gap(g)
     array.clear(nwog_gaps)
-    nwog_gaps := f_draw_htf_gaps(w_tops, w_btms, w_tms, w_bulls, i_nwogCount, i_nwogLines, i_nwogColorBull, i_nwogColorBear, i_nwogBorderCol, i_nwogBorderStyle, i_nwogBorderWidth, i_nwogLineCol, i_nwogLineStyle, i_nwogLineWidth)
+    nwog_gaps := f_draw_htf_gaps(w_tops, w_btms, w_tms, w_bulls, 5, "CE", c_nwog, c_nwog, c_nwog, "solid (—)", 1, c_nwog, "dashed (---)", 1)
 
 if (barstate.islast or timeframe.change("D")) and i_showNdog and show_draws
     for g in ndog_gaps
