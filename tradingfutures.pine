@@ -34,24 +34,27 @@ f_get_line_style(string s) => s=="solid (—)" or s=="Solid" ? line.style_solid 
 f_get_size(string s) => s=="tiny" ? size.tiny : s=="small" ? size.small : s=="normal" ? size.normal : size.large
 
 // --- Settings ---
-grp_ma = "Moving Averages Settings", i_showMas = input.bool(false, "Show EMA/SMA", group=grp_ma)
-i_smaColor = input.color(#42bda8,"SMA",inline="sma_main",group=grp_ma), i_smaLen = input.int(200,minval=1,title="",inline="sma_main",group=grp_ma)
-i_emaColor = input.color(#5b9cf6,"EMA",inline="ema_main",group=grp_ma), i_emaLen = input.int(50,minval=1,title="",inline="ema_main",group=grp_ma)
+i_showMas = input.bool(false, "Show EMA/SMA")
+i_smaColor = input.color(#42bda8, "SMA", inline="sma_main"), i_smaLen = input.int(200, minval=1, title="", inline="sma_main")
+i_emaColor = input.color(#5b9cf6, "EMA", inline="ema_main"), i_emaLen = input.int(50, minval=1, title="", inline="ema_main")
 
-grp_nwog = "NWOG Settings", i_showNwog = input.bool(true, "Show NWOG", group=grp_nwog)
+i_showBias = input.bool(true, "Show Sentiment Badge")
+
+i_showNwog = input.bool(true, "Show NWOG")
 color c_nwog = color.new(#2962ff, 90)
-grp_ndog = "NDOG Settings", i_showNdog = input.bool(true, "Show NDOG", group=grp_ndog)
+
+i_showNdog = input.bool(true, "Show NDOG")
 color c_ndog = color.new(#ba68c8, 90)
 
-grp_gen = "General Settings", i_offset = input.int(50,"Label Offset (Bars)",group=grp_gen)
-grp_rthg = "RTHG Settings", i_showRthg = input.bool(true, "Show Regular Trading Hours Gap", group=grp_rthg)
+i_showRthg = input.bool(true, "Show Regular Trading Hours Gap")
 color c_rthg = color.new(#00b9d0, 90)
 color c_rthg_border = #00b9d0
 color c_rthg_line = #00b9d0
 color c_rthg_txt = #008f9c
 string rth_sess = "0930-1615"
-grp_ny = "NY Midnight Open Settings", i_showNy = input.bool(true,"Show NY Midnight Open",group=grp_ny)
-grp_bias = "Market Sentiment Banner", i_showBias = input.bool(true, "Show Sentiment Badge", group=grp_bias)
+
+i_showNy = input.bool(true, "Show NY Midnight Open")
+i_offset = input.int(50, "Label Offset (Bars)")
 
 // --- HTF Data Fetchers ---
 f_fetch_htf_gaps(int count) =>
