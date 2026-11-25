@@ -91,12 +91,12 @@ f_fetch_15m_context() =>
         ny_open := open
     [ta.ema(close, 20), ny_open]
 
-[w_tops, w_btms, w_tms, w_bulls] = request.security(syminfo.tickerid, "W", f_fetch_htf_gaps(10))
-[d_tops, d_btms, d_tms, d_bulls] = request.security(syminfo.tickerid, "D", f_fetch_htf_gaps(10))
-[r_tops, r_btms, r_tms]          = request.security(syminfo.tickerid, "15", f_fetch_rth_arrays())
-[d_open, d_ema20]                = request.security(syminfo.tickerid, "D", [open, ta.ema(close, 20)])
-[h1_ema, h1_sma]                 = request.security(syminfo.tickerid, "60", [ta.ema(close, i_emaLen), ta.sma(close, i_smaLen)])
-[m15_ema, ny_mid_15m]            = request.security(syminfo.tickerid, "15", f_fetch_15m_context())
+[w_tops, w_btms, w_tms, w_bulls] = request.security(syminfo.tickerid, "W", f_fetch_htf_gaps(10), lookahead=barmerge.lookahead_off)
+[d_tops, d_btms, d_tms, d_bulls] = request.security(syminfo.tickerid, "D", f_fetch_htf_gaps(10), lookahead=barmerge.lookahead_off)
+[r_tops, r_btms, r_tms]          = request.security(syminfo.tickerid, "15", f_fetch_rth_arrays(), lookahead=barmerge.lookahead_off)
+[d_open, d_ema20]                = request.security(syminfo.tickerid, "D", [open, ta.ema(close, 20)], lookahead=barmerge.lookahead_off)
+[h1_ema, h1_sma]                 = request.security(syminfo.tickerid, "60", [ta.ema(close, i_emaLen), ta.sma(close, i_smaLen)], lookahead=barmerge.lookahead_off)
+[m15_ema, ny_mid_15m]            = request.security(syminfo.tickerid, "15", f_fetch_15m_context(), lookahead=barmerge.lookahead_off)
 
 // --- GAP Engine ---
 show_draws = not timeframe.isdwm // Master switch: Hides drawings on D, W, M timeframes
@@ -195,7 +195,7 @@ if is_new_mid
     openprice := open
 
 if i_showNy and show_draws and is_new_mid
-    line.new(nmid, openprice, nmid + 86400000, openprice, xloc.bar_time, extend.none, #0064ff, line.style_dotted, 2).set_extend(extend.none)
+    line.new(nmid, openprice, nmid + 86400000, openprice, xloc.bar_time, extend.none, #0064ff, line.style_dotted, 2)
     label.set_y(ny_lbl, openprice), label.set_text(ny_lbl, "NY Midnight Open | " + str.tostring(math.round_to_mintick(openprice))), label.set_textcolor(ny_lbl, #0098ff), label.set_size(ny_lbl, size.tiny)
     vl1 = line.new(nmid, high, nmid, low, xloc.bar_time, extend.both, #00b9d0, line.style_solid, 1)
     if line.get_y1(vl1) == line.get_y2(vl1)
