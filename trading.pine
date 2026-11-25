@@ -11,11 +11,6 @@ type GapObject
     line ln
     label lbl
 
-type PolyStream
-    chart.point[] pts
-    polyline[] frozen
-    polyline live
-
 f_del_gap(GapObject g) =>
     if not na(g)
         box.delete(g.b), line.delete(g.ln)
@@ -155,28 +150,30 @@ if barstate.islast and show_draws
 
 // --- SMA & EMA Chunked Polyline Engine (O(1) per bar, zero array.shift copies) ---
 float sma_out = ta.sma(close, i_smaLen), float ema_out = ta.ema(close, i_emaLen)
-var sma_ps = PolyStream.new(array.new<chart.point>(), array.new<polyline>(), na)
-var ema_ps = PolyStream.new(array.new<chart.point>(), array.new<polyline>(), na)
+var sma_pts = array.new<chart.point>(), var sma_frozen = array.new<polyline>(), var polyline sma_live = na
+var ema_pts = array.new<chart.point>(), var ema_frozen = array.new<polyline>(), var polyline ema_live = na
 
-f_update_poly(PolyStream ps, float val, color col) =>
+f_update_poly(chart.point[] pts, polyline[] frozen, polyline live_p, float val, color col) =>
+    polyline out_live = live_p
     if i_showMas
         if not na(val)
-            array.push(ps.pts, chart.point.from_time(time, val))
-            if array.size(ps.pts) >= 1000
-                array.push(ps.frozen, polyline.new(ps.pts, curved=false, closed=false, xloc=xloc.bar_time, line_color=col, line_style=line.style_solid, line_width=1))
-                if array.size(ps.frozen) > 25
-                    polyline.delete(array.shift(ps.frozen))
-                chart.point tail = array.get(ps.pts, array.size(ps.pts) - 1)
-                array.clear(ps.pts), array.push(ps.pts, tail)
+            array.push(pts, chart.point.from_time(time, val))
+            if array.size(pts) >= 1000
+                array.push(frozen, polyline.new(pts, curved=false, closed=false, xloc=xloc.bar_time, line_color=col, line_style=line.style_solid, line_width=1))
+                if array.size(frozen) > 25
+                    polyline.delete(array.shift(frozen))
+                chart.point tail = array.get(pts, array.size(pts) - 1)
+                array.clear(pts), array.push(pts, tail)
         if barstate.islast
-            if not na(ps.live)
-                polyline.delete(ps.live)
-                ps.live := na
-            if array.size(ps.pts) > 1
-                ps.live := polyline.new(ps.pts, curved=false, closed=false, xloc=xloc.bar_time, line_color=col, line_style=line.style_solid, line_width=1)
+            if not na(out_live)
+                polyline.delete(out_live)
+                out_live := na
+            if array.size(pts) > 1
+                out_live := polyline.new(pts, curved=false, closed=false, xloc=xloc.bar_time, line_color=col, line_style=line.style_solid, line_width=1)
+    out_live
 
-f_update_poly(sma_ps, sma_out, i_smaColor)
-f_update_poly(ema_ps, ema_out, i_emaColor)
+sma_live := f_update_poly(sma_pts, sma_frozen, sma_live, sma_out, i_smaColor)
+ema_live := f_update_poly(ema_pts, ema_frozen, ema_live, ema_out, i_emaColor)
 plot(i_showMas ? sma_out : na, title="SMA", color=i_smaColor, display=display.price_scale)
 plot(i_showMas ? ema_out : na, title="EMA", color=i_emaColor, display=display.price_scale)
 
