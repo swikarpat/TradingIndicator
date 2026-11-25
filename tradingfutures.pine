@@ -84,12 +84,19 @@ f_fetch_rth_arrays() =>
                 array.pop(tops), array.pop(btms), array.pop(tms)
     [tops, btms, tms]
 
+f_fetch_15m_context() =>
+    var float ny_open = na
+    bool in_mid = not na(time(timeframe.period, "0000-0015:1234567", "America/New_York"))
+    if in_mid and not in_mid[1]
+        ny_open := open
+    [ta.ema(close, 20), ny_open]
+
 [w_tops, w_btms, w_tms, w_bulls] = request.security(syminfo.tickerid, "W", f_fetch_htf_gaps(10))
 [d_tops, d_btms, d_tms, d_bulls] = request.security(syminfo.tickerid, "D", f_fetch_htf_gaps(10))
 [r_tops, r_btms, r_tms]          = request.security(syminfo.tickerid, "15", f_fetch_rth_arrays())
 [d_open, d_ema20]                = request.security(syminfo.tickerid, "D", [open, ta.ema(close, 20)])
-[h1_ema, h1_sma, h1_close]       = request.security(syminfo.tickerid, "60", [ta.ema(close, i_emaLen), ta.sma(close, i_smaLen), close])
-[m15_ema, m15_close]             = request.security(syminfo.tickerid, "15", [ta.ema(close, 20), close])
+[h1_ema, h1_sma]                 = request.security(syminfo.tickerid, "60", [ta.ema(close, i_emaLen), ta.sma(close, i_smaLen)])
+[m15_ema, ny_mid_15m]            = request.security(syminfo.tickerid, "15", f_fetch_15m_context())
 
 // --- GAP Engine ---
 show_draws = not timeframe.isdwm // Master switch: Hides drawings on D, W, M timeframes
@@ -182,18 +189,17 @@ if barstate.islast
         label.set_x(ny_lbl, time_offset)
 
 nmid = time("1", '0000-0001:1234567', "America/New_York")
+bool is_new_mid = not na(nmid) and na(nmid[1])
 var float openprice = 0.0
-if not na(nmid)
-    openprice := na(nmid[1]) ? open : math.max(open, openprice)
+if is_new_mid
+    openprice := open
 
-if i_showNy and show_draws
-    if openprice != openprice[1]
-        line.new(nmid, openprice, nmid + 86400000, openprice, xloc.bar_time, extend.none, #0064ff, line.style_dotted, 2).set_extend(extend.none)
-        label.set_y(ny_lbl, openprice), label.set_text(ny_lbl, "NY Midnight Open | " + str.tostring(math.round_to_mintick(openprice))), label.set_textcolor(ny_lbl, #0098ff), label.set_size(ny_lbl, size.tiny)
-    if not na(nmid)
-        vl1 = line.new(nmid, high, nmid, low, xloc.bar_time, extend.both, #00b9d0, line.style_solid, 1)
-        if line.get_y1(vl1) == line.get_y2(vl1)
-            line.delete(vl1)
+if i_showNy and show_draws and is_new_mid
+    line.new(nmid, openprice, nmid + 86400000, openprice, xloc.bar_time, extend.none, #0064ff, line.style_dotted, 2).set_extend(extend.none)
+    label.set_y(ny_lbl, openprice), label.set_text(ny_lbl, "NY Midnight Open | " + str.tostring(math.round_to_mintick(openprice))), label.set_textcolor(ny_lbl, #0098ff), label.set_size(ny_lbl, size.tiny)
+    vl1 = line.new(nmid, high, nmid, low, xloc.bar_time, extend.both, #00b9d0, line.style_solid, 1)
+    if line.get_y1(vl1) == line.get_y2(vl1)
+        line.delete(vl1)
 
 // --- SMA & EMA Polyline Drawing Engine (Infinite history without dots) ---
 sma_out = ta.sma(close, i_smaLen)
@@ -245,114 +251,122 @@ plot(i_showMas ? ema_out : na, title="EMA", color=i_emaColor, display=display.pr
 // --- Market Sentiment Banner Engine ---
 var table bias_tbl = table.new(position.top_right, 1, 1, bgcolor=color(na), border_width=0)
 
-float active_nwog_ce = na
-if not na(w_tops) and not na(w_btms)
-    if array.size(w_tops) > 0 and array.size(w_btms) > 0
-        active_nwog_ce := math.avg(array.get(w_tops, 0), array.get(w_btms, 0))
+// Safely extracts the most recent gap's 50% CE while guarding against na HTF arrays on bar 0.
+f_get_latest_ce(float[] tops, float[] btms) =>
+    float ce = na
+    if not na(tops) and not na(btms)
+        if array.size(tops) > 0 and array.size(btms) > 0
+            ce := math.avg(array.get(tops, 0), array.get(btms, 0))
+    ce
 
-float active_ndog_ce = na
-if not na(d_tops) and not na(d_btms)
-    if array.size(d_tops) > 0 and array.size(d_btms) > 0
-        active_ndog_ce := math.avg(array.get(d_tops, 0), array.get(d_btms, 0))
+// Evaluates one sentiment factor vs current close: [score delta, active flag, bull flag, tooltip line].
+f_eval_factor(float lvl, string label_str, string suffix) =>
+    if not na(lvl)
+        bool is_b = close >= lvl
+        [is_b ? 1 : -1, 1, is_b ? 1 : 0, "• " + label_str + " (" + str.tostring(math.round_to_mintick(lvl)) + "): " + (is_b ? "Bullish" : "Bearish") + suffix]
+    else
+        [0, 0, 0, ""]
 
-int bias_score = 0
-string tip_1d = ""
-string tip_1h_ema = ""
-string tip_1h_sma = ""
-string tip_15m = ""
-string tip_6pm = ""
-string tip_ny = ""
-string tip_nwog = ""
-string tip_ndog = ""
+f_append_line(string acc, string line_str) =>
+    line_str != "" ? acc + line_str + "\n" : acc
 
-// 1. 1D Macro Trend (20 EMA)
-if not na(d_ema20)
-    bool is_b = close >= d_ema20
-    bias_score += (is_b ? 1 : -1)
-    tip_1d := "• 1D 20 EMA (" + str.tostring(math.round_to_mintick(d_ema20)) + "): " + (is_b ? "Bullish" : "Bearish")
+float active_nwog_ce = f_get_latest_ce(w_tops, w_btms)
+float active_ndog_ce = f_get_latest_ce(d_tops, d_btms)
+float ny_mid_val     = openprice > 0 ? openprice : ny_mid_15m
 
-// 2. 1H 50 EMA
-if not na(h1_ema)
-    bool is_b = close >= h1_ema
-    bias_score += (is_b ? 1 : -1)
-    tip_1h_ema := "• 1H " + str.tostring(i_emaLen) + " EMA (" + str.tostring(math.round_to_mintick(h1_ema)) + "): " + (is_b ? "Bullish" : "Bearish")
+// Timeframe Alignment (3 HTF trend gauges + 15m tactical momentum)
+string cross_info = (not na(h1_ema) and not na(h1_sma)) ? (h1_ema >= h1_sma ? " (Golden)" : " (Death)") : ""
+[s_1d,     ok_1d,     b_1d,     tip_1d]     = f_eval_factor(d_ema20, "1D 20 EMA", "")
+[s_1h_ema, ok_1h_ema, b_1h_ema, tip_1h_ema] = f_eval_factor(h1_ema, "1H " + str.tostring(i_emaLen) + " EMA", "")
+[s_1h_sma, ok_1h_sma, b_1h_sma, tip_1h_sma] = f_eval_factor(h1_sma, "1H " + str.tostring(i_smaLen) + " SMA", cross_info)
+[s_15m,    ok_15m,    b_15m,    tip_15m]    = f_eval_factor(m15_ema, "15m 20 EMA", "")
 
-// 3. 1H 200 SMA + Golden/Death Cross
-if not na(h1_sma)
-    bool is_b = close >= h1_sma
-    bias_score += (is_b ? 1 : -1)
-    string cross_info = not na(h1_ema) ? (h1_ema >= h1_sma ? " (Golden)" : " (Death)") : ""
-    tip_1h_sma := "• 1H " + str.tostring(i_smaLen) + " SMA (" + str.tostring(math.round_to_mintick(h1_sma)) + "): " + (is_b ? "Bullish" : "Bearish") + cross_info
+// ICT Anchors (Globex 6PM, NY Midnight, Active NWOG CE, Active NDOG CE)
+[s_6pm,  ok_6pm,  b_6pm,  tip_6pm]  = f_eval_factor(d_open, "Globex 6PM", "")
+[s_ny,   ok_ny,   b_ny,   tip_ny]   = f_eval_factor(ny_mid_val, "NY Midnight", "")
+[s_nwog, ok_nwog, b_nwog, tip_nwog] = f_eval_factor(active_nwog_ce, "Active NWOG", "")
+[s_ndog, ok_ndog, b_ndog, tip_ndog] = f_eval_factor(active_ndog_ce, "Active NDOG", "")
 
-// 4. 15m Tactical Momentum (20 EMA)
-if not na(m15_ema)
-    bool is_b = close >= m15_ema
-    bias_score += (is_b ? 1 : -1)
-    tip_15m := "• 15m 20 EMA (" + str.tostring(math.round_to_mintick(m15_ema)) + "): " + (is_b ? "Bullish" : "Bearish")
+int htf_score     = s_1d + s_1h_ema + s_1h_sma
+int htf_active    = ok_1d + ok_1h_ema + ok_1h_sma
+int tf_bulls      = b_1d + b_1h_ema + b_1h_sma + b_15m
+int tf_active     = ok_1d + ok_1h_ema + ok_1h_sma + ok_15m
+int tf_bears      = tf_active - tf_bulls
 
-// 5. 6:00 PM Globex Daily Open
-if not na(d_open)
-    bool is_b = close >= d_open
-    bias_score += (is_b ? 1 : -1)
-    tip_6pm := "• Globex 6PM (" + str.tostring(math.round_to_mintick(d_open)) + "): " + (is_b ? "Bullish" : "Bearish")
+int ict_bulls     = b_6pm + b_ny + b_nwog + b_ndog
+int ict_active    = ok_6pm + ok_ny + ok_nwog + ok_ndog
+int ict_bears     = ict_active - ict_bulls
 
-// 6. NY Midnight Open
-if not na(openprice) and openprice > 0
-    bool is_b = close >= openprice
-    bias_score += (is_b ? 1 : -1)
-    tip_ny := "• NY Midnight (" + str.tostring(math.round_to_mintick(openprice)) + "): " + (is_b ? "Bullish" : "Bearish")
-
-// 7. Active NWOG CE
-if not na(active_nwog_ce)
-    bool is_b = close >= active_nwog_ce
-    bias_score += (is_b ? 1 : -1)
-    tip_nwog := "• Active NWOG (" + str.tostring(math.round_to_mintick(active_nwog_ce)) + "): " + (is_b ? "Bullish" : "Bearish")
-
-// 8. Active NDOG CE
-if not na(active_ndog_ce)
-    bool is_b = close >= active_ndog_ce
-    bias_score += (is_b ? 1 : -1)
-    tip_ndog := "• Active NDOG (" + str.tostring(math.round_to_mintick(active_ndog_ce)) + "): " + (is_b ? "Bullish" : "Bearish")
-
-// Safety Switch (Decision factors)
-string safety_note = ""
-if bias_score >= 6
-    safety_note := "🟢 Strong bullish run (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/8). Avoid heavy shorts!"
-else if not na(m15_ema) and close < m15_ema and not na(openprice) and close >= openprice
-    safety_note := "🟢 Prime Short: 15m momentum crack above midnight open."
-else if bias_score <= -6
-    safety_note := "🔴 Strong bearish run (" + str.tostring(bias_score) + "/8). Avoid heavy longs!"
-else
-    safety_note := "⚖️ Normal: Standard mean-reversion rules apply."
-
-string b_text = bias_score > 0 ? "BULLISH" : bias_score < 0 ? "BEARISH" : "NEUTRAL"
-string score_tag = " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/8)"
-string pill_title = b_text + score_tag
-color b_color = bias_score > 0 ? #089981 : bias_score < 0 ? #f23645 : #5d606b
-
-string b_tip = "─── MARKET SENTIMENT ───\n"
-b_tip += "Verdict: " + b_text + " (" + (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/8)\n"
-b_tip += "──────────────────\n"
-b_tip += "TIMEFRAME ALIGNMENT:\n"
-b_tip += tip_1d + "\n"
-b_tip += tip_1h_ema + "\n"
-b_tip += tip_1h_sma + "\n"
-b_tip += tip_15m + "\n"
-b_tip += "──────────────────\n"
-b_tip += "ICT ANCHORS:\n"
-b_tip += tip_6pm + "\n"
-b_tip += tip_ny + "\n"
-b_tip += tip_nwog + "\n"
-b_tip += tip_ndog + "\n"
-b_tip += "──────────────────\n"
-b_tip += "SAFETY SWITCH:\n"
-b_tip += safety_note
+int bias_score    = s_1d + s_1h_ema + s_1h_sma + s_15m + s_6pm + s_ny + s_nwog + s_ndog
+int total_factors = tf_active + ict_active
+int total_bulls   = tf_bulls + ict_bulls
+int total_bears   = tf_bears + ict_bears
 
 if barstate.islast
     table.clear(bias_tbl, 0, 0, 0, 0)
-    
-    // Sentiment Badge (Compact Pill with built-in score)
-    if i_showBias
+
+    if i_showBias and total_factors > 0
+        int strong_thresh = math.max(2, total_factors - 2)
+        int mod_thresh    = math.max(2, total_factors - 4)
+
+        string b_text = "NEUTRAL"
+        color  b_color = #5d606b
+        if bias_score >= strong_thresh
+            b_text  := "STRONG BULL"
+            b_color := #089981
+        else if bias_score >= mod_thresh
+            b_text  := "BULLISH"
+            b_color := #089981
+        else if bias_score > 0
+            b_text  := "LEAN BULL"
+            b_color := #496e62
+        else if bias_score <= -strong_thresh
+            b_text  := "STRONG BEAR"
+            b_color := #f23645
+        else if bias_score <= -mod_thresh
+            b_text  := "BEARISH"
+            b_color := #f23645
+        else if bias_score < 0
+            b_text  := "LEAN BEAR"
+            b_color := #8a4a52
+
+        string score_str  = (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/" + str.tostring(total_factors)
+        string pill_title = b_text + " (" + score_str + ")"
+
+        // Safety Switch priority: extreme trend -> tactical Midnight setup -> HTF conflict warning -> normal
+        bool has_midnight = not na(m15_ema) and not na(ny_mid_val)
+        string safety_note = "⚖️ Normal: Mixed conditions. Standard mean-reversion rules apply."
+        if bias_score >= strong_thresh
+            safety_note := "🟢 Strong bullish run (" + score_str + "). Avoid heavy shorts!"
+        else if bias_score <= -strong_thresh
+            safety_note := "🔴 Strong bearish run (" + score_str + "). Avoid heavy longs!"
+        else if has_midnight and close < m15_ema and close >= ny_mid_val
+            safety_note := "🔴 Prime Short: 15m momentum crack above midnight open."
+        else if has_midnight and close > m15_ema and close <= ny_mid_val
+            safety_note := "🟢 Prime Long: 15m momentum shift below midnight open."
+        else if htf_active >= 2 and htf_score < 0 and bias_score > 0
+            safety_note := "⚠️ Counter-Trend Bounce: Intraday bullish vs HTF downtrend. Watch resistance!"
+        else if htf_active >= 2 and htf_score > 0 and bias_score < 0
+            safety_note := "⚠️ Counter-Trend Pullback: Intraday bearish vs HTF uptrend. Watch support!"
+
+        string b_tip = "─── MARKET SENTIMENT ───\n"
+        b_tip += "Verdict: " + b_text + " (" + score_str + " | " + str.tostring(total_bulls) + " Bull / " + str.tostring(total_bears) + " Bear)\n"
+        b_tip += "──────────────────\n"
+        b_tip += "TIMEFRAME ALIGNMENT (" + str.tostring(tf_bulls) + " Bull / " + str.tostring(tf_bears) + " Bear):\n"
+        b_tip := f_append_line(b_tip, tip_1d)
+        b_tip := f_append_line(b_tip, tip_1h_ema)
+        b_tip := f_append_line(b_tip, tip_1h_sma)
+        b_tip := f_append_line(b_tip, tip_15m)
+        b_tip += "──────────────────\n"
+        b_tip += "ICT ANCHORS (" + str.tostring(ict_bulls) + " Bull / " + str.tostring(ict_bears) + " Bear):\n"
+        b_tip := f_append_line(b_tip, tip_6pm)
+        b_tip := f_append_line(b_tip, tip_ny)
+        b_tip := f_append_line(b_tip, tip_nwog)
+        b_tip := f_append_line(b_tip, tip_ndog)
+        b_tip += "──────────────────\n"
+        b_tip += "SAFETY SWITCH:\n"
+        b_tip += safety_note
+
         table.cell(bias_tbl, 0, 0, pill_title, text_color=color.white, text_size=size.normal, bgcolor=b_color, tooltip=b_tip)
 
 // Output to Data Window for Mobile inspection without chart clutter
