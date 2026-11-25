@@ -89,14 +89,14 @@ f_fetch_15m_context() =>
     bool in_mid = not na(time(timeframe.period, "0000-0015:1234567", "America/New_York"))
     if in_mid and not in_mid[1]
         ny_open := open
-    [ta.ema(close, 20), ny_open]
+    [ta.ema(close, 20), ta.atr(14), ny_open]
 
 [w_tops, w_btms, w_tms, w_bulls] = request.security(syminfo.tickerid, "W", f_fetch_htf_gaps(10), lookahead=barmerge.lookahead_off)
 [d_tops, d_btms, d_tms, d_bulls] = request.security(syminfo.tickerid, "D", f_fetch_htf_gaps(10), lookahead=barmerge.lookahead_off)
 [r_tops, r_btms, r_tms]          = request.security(syminfo.tickerid, "15", f_fetch_rth_arrays(), lookahead=barmerge.lookahead_off)
 [d_open, d_ema20]                = request.security(syminfo.tickerid, "D", [open, ta.ema(close, 20)], lookahead=barmerge.lookahead_off)
 [h1_ema, h1_sma]                 = request.security(syminfo.tickerid, "60", [ta.ema(close, i_emaLen), ta.sma(close, i_smaLen)], lookahead=barmerge.lookahead_off)
-[m15_ema, ny_mid_15m]            = request.security(syminfo.tickerid, "15", f_fetch_15m_context(), lookahead=barmerge.lookahead_off)
+[m15_ema, m15_atr, ny_mid_15m]   = request.security(syminfo.tickerid, "15", f_fetch_15m_context(), lookahead=barmerge.lookahead_off)
 
 // --- GAP Engine ---
 show_draws = not timeframe.isdwm // Master switch: Hides drawings on D, W, M timeframes
@@ -335,14 +335,15 @@ if barstate.islast
 
         // Safety Switch priority: extreme trend -> tactical Midnight setup -> HTF conflict warning -> normal
         bool has_midnight = not na(m15_ema) and not na(ny_mid_val)
+        float min_sep     = not na(m15_atr) ? m15_atr * 0.25 : 0.0
         string safety_note = "⚖️ Normal: Mixed conditions. Standard mean-reversion rules apply."
         if bias_score >= strong_thresh
             safety_note := "🟢 Strong bullish run (" + score_str + "). Avoid heavy shorts!"
         else if bias_score <= -strong_thresh
             safety_note := "🔴 Strong bearish run (" + score_str + "). Avoid heavy longs!"
-        else if has_midnight and close < m15_ema and close >= ny_mid_val
+        else if has_midnight and close < m15_ema and close >= ny_mid_val and (m15_ema - ny_mid_val) >= min_sep
             safety_note := "🔴 Prime Short: 15m momentum crack above midnight open."
-        else if has_midnight and close > m15_ema and close <= ny_mid_val
+        else if has_midnight and close > m15_ema and close <= ny_mid_val and (ny_mid_val - m15_ema) >= min_sep
             safety_note := "🟢 Prime Long: 15m momentum shift below midnight open."
         else if htf_active >= 2 and htf_score < 0 and bias_score > 0
             safety_note := "⚠️ Counter-Trend Bounce: Intraday bullish vs HTF downtrend. Watch resistance!"
