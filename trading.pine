@@ -102,10 +102,10 @@ var float openprice = 0.0
 if not na(nmid) and na(nmid[1])
     openprice := open
     if i_showNy and show_draws
-        line.new(nmid, openprice, nmid + 86400000, openprice, xloc=xloc.bar_time, extend.none, #0064ff, line.style_dotted, 2)
+        line.new(nmid, openprice, nmid + 86400000, openprice, xloc=xloc.bar_time, extend=extend.none, color=#0064ff, style=line.style_dotted, width=2)
         label.set_y(ny_lbl, openprice), label.set_text(ny_lbl, "NY Midnight Open | " + str.tostring(math.round_to_mintick(openprice)))
         if high != low
-            line.new(nmid, high, nmid, low, xloc=xloc.bar_time, extend.both, #00b9d0, line.style_solid, 1)
+            line.new(nmid, high, nmid, low, xloc=xloc.bar_time, extend=extend.both, color=#00b9d0, style=line.style_solid, width=1)
 
 if barstate.islast and show_draws
     int off_t = time + i_offset * timeframe.in_seconds() * 1000
