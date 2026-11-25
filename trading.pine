@@ -3,373 +3,251 @@
 // © SwikarP
 
 //@version=6
-
 indicator("TradingIndicator", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500, max_polylines_count=100)
 
-// --- Types & Methods ---
+// --- Types & Helpers ---
 type GapObject
-    float top_val
-    float btm_val
-    float avg_val
-    int start_t
     box b
-    line[] lines
-    label l
-
-type EhpdaObj
-    line lvl
+    line ln
     label lbl
 
-f_delete_gap(GapObject obj) =>
-    if not na(obj)
-        if not na(obj.b)
-            box.delete(obj.b)
-        for l in obj.lines
-            if not na(l)
-                line.delete(l)
-        if not na(obj.l)
-            label.delete(obj.l)
+type PolyStream
+    chart.point[] pts
+    polyline[] frozen
+    polyline live
 
-f_get_line_style(string s) => s=="solid (—)" or s=="Solid" ? line.style_solid : s=="dotted (...)" or s=="Dotted" ? line.style_dotted : line.style_dashed
-f_get_size(string s) => s=="tiny" ? size.tiny : s=="small" ? size.small : s=="normal" ? size.normal : size.large
+f_del_gap(GapObject g) =>
+    if not na(g)
+        box.delete(g.b), line.delete(g.ln)
+        if not na(g.lbl)
+            label.delete(g.lbl)
 
 // --- Settings ---
-i_showMas = input.bool(false, "Show EMA/SMA")
+i_showMas  = input.bool(false, "Show EMA/SMA")
 i_smaColor = input.color(#42bda8, "SMA", inline="sma_main"), i_smaLen = input.int(200, minval=1, title="", inline="sma_main")
 i_emaColor = input.color(#5b9cf6, "EMA", inline="ema_main"), i_emaLen = input.int(50, minval=1, title="", inline="ema_main")
-
 i_showBias = input.bool(true, "Show Sentiment Badge")
-
 i_showNwog = input.bool(true, "Show NWOG")
-color c_nwog = color.new(#2962ff, 90)
-
 i_showNdog = input.bool(true, "Show NDOG")
-color c_ndog = color.new(#ba68c8, 90)
-
 i_showRthg = input.bool(true, "Show Regular Trading Hours Gap")
-color c_rthg = color.new(#00b9d0, 90)
-color c_rthg_border = #00b9d0
-color c_rthg_line = #00b9d0
-color c_rthg_txt = #008f9c
-string rth_sess = "0930-1615"
+i_showNy   = input.bool(true, "Show NY Midnight Open")
+i_offset   = input.int(50, "Label Offset (Bars)")
 
-i_showNy = input.bool(true, "Show NY Midnight Open")
+color c_nwog = color.new(#2962ff, 90), color c_ndog = color.new(#ba68c8, 90)
+color c_rthg = color.new(#00b9d0, 90), color c_rthg_l = #00b9d0, color c_rthg_t = #008f9c
 
-i_offset = input.int(50, "Label Offset (Bars)")
+// --- HTF Data Fetchers (1 stream per timeframe, O(1) updates per bar) ---
+f_record_gap(float[] tops, float[] btms, int[] tms, float prev_c, float curr_o, int tm, int max_n) =>
+    float top = math.max(prev_c, curr_o), float btm = math.min(prev_c, curr_o)
+    if top != btm
+        array.unshift(tops, top), array.unshift(btms, btm), array.unshift(tms, tm)
+        if array.size(tops) > max_n
+            array.pop(tops), array.pop(btms), array.pop(tms)
 
-// --- HTF Data Fetchers ---
-f_fetch_htf_gaps(int count) =>
-    float[] tops = array.new_float(), float[] btms = array.new_float(), int[] tms = array.new_int(), bool[] bulls = array.new_bool()
-    for i = 0 to 15
-        if na(close[i+1])
-            break
-        top = math.max(close[i+1], open[i]), btm = math.min(close[i+1], open[i])
-        if top != btm
-            array.push(tops, top), array.push(btms, btm), array.push(tms, time[i]), array.push(bulls, open[i] > close[i+1])
-        if array.size(tops) >= count
-            break
-    [tops, btms, tms, bulls]
+f_fetch_w() =>
+    var tops = array.new<float>(), var btms = array.new<float>(), var tms = array.new<int>()
+    if not na(close[1])
+        f_record_gap(tops, btms, tms, close[1], open, time, 5)
+    [tops, btms, tms]
 
-f_fetch_rth_arrays() =>
-    var float[] tops = array.new<float>(0), var float[] btms = array.new<float>(0), var int[] tms = array.new<int>(0)
-    in_r = not na(time(timeframe.period, rth_sess + ":23456", "America/New_York"))
-    var float prev_c = na
+f_fetch_d() =>
+    var tops = array.new<float>(), var btms = array.new<float>(), var tms = array.new<int>()
+    float ema20 = ta.ema(close, 20)
+    if not na(close[1])
+        f_record_gap(tops, btms, tms, close[1], open, time, 5)
+    [tops, btms, tms, open, ema20]
+
+f_fetch_15m() =>
+    var tops = array.new<float>(), var btms = array.new<float>(), var tms = array.new<int>()
+    var float prev_c = na, var float ny_open = na
+    bool in_r = not na(time(timeframe.period, "0930-1615:23456", "America/New_York"))
     if in_r[1] and not in_r
         prev_c := close[1]
     if in_r and not in_r[1] and not na(prev_c)
-        top = math.max(prev_c, open), btm = math.min(prev_c, open)
-        if top != btm
-            array.unshift(tops, top), array.unshift(btms, btm), array.unshift(tms, time)
-            if array.size(tops) > 10
-                array.pop(tops), array.pop(btms), array.pop(tms)
-    [tops, btms, tms]
-
-f_fetch_15m_context() =>
-    var float ny_open = na
+        f_record_gap(tops, btms, tms, prev_c, open, time, 6)
     bool in_mid = not na(time(timeframe.period, "0000-0015:1234567", "America/New_York"))
     if in_mid and not in_mid[1]
         ny_open := open
-    [ta.ema(close, 20), ta.atr(14), ny_open]
+    [tops, btms, tms, ta.ema(close, 20), ta.atr(14), ny_open]
 
-[w_tops, w_btms, w_tms, w_bulls] = request.security(syminfo.tickerid, "W", f_fetch_htf_gaps(10), lookahead=barmerge.lookahead_off)
-[d_tops, d_btms, d_tms, d_bulls] = request.security(syminfo.tickerid, "D", f_fetch_htf_gaps(10), lookahead=barmerge.lookahead_off)
-[r_tops, r_btms, r_tms]          = request.security(syminfo.tickerid, "15", f_fetch_rth_arrays(), lookahead=barmerge.lookahead_off)
-[d_open, d_ema20]                = request.security(syminfo.tickerid, "D", [open, ta.ema(close, 20)], lookahead=barmerge.lookahead_off)
-[h1_ema, h1_sma]                 = request.security(syminfo.tickerid, "60", [ta.ema(close, i_emaLen), ta.sma(close, i_smaLen)], lookahead=barmerge.lookahead_off)
-[m15_ema, m15_atr, ny_mid_15m]   = request.security(syminfo.tickerid, "15", f_fetch_15m_context(), lookahead=barmerge.lookahead_off)
+[w_tops, w_btms, w_tms]                              = request.security(syminfo.tickerid, "W",  f_fetch_w(), lookahead=barmerge.lookahead_off)
+[d_tops, d_btms, d_tms, d_open, d_ema20]             = request.security(syminfo.tickerid, "D",  f_fetch_d(), lookahead=barmerge.lookahead_off)
+[h1_ema, h1_sma]                                     = request.security(syminfo.tickerid, "60", [ta.ema(close, i_emaLen), ta.sma(close, i_smaLen)], lookahead=barmerge.lookahead_off)
+[r_tops, r_btms, r_tms, m15_ema, m15_atr, ny_15m]    = request.security(syminfo.tickerid, "15", f_fetch_15m(), lookahead=barmerge.lookahead_off)
 
-// --- GAP Engine ---
-show_draws = not timeframe.isdwm // Master switch: Hides drawings on D, W, M timeframes
-
-f_create_gap(top_val, btm_val, start_t, lines_type, bg_col, border_col, border_style, border_w, line_col, line_style, line_w, txt, txt_col, txt_size) =>
-    avg_val = math.avg(top_val, btm_val), lines = array.new<line>(), b_col = border_w == 0 ? color.new(border_col, 100) : border_col
-    b = box.new(left=start_t, top=top_val, right=start_t+1, bottom=btm_val, xloc=xloc.bar_time, extend=extend.right, bgcolor=bg_col, border_color=b_col, border_style=f_get_line_style(border_style), border_width=border_w)
-    if lines_type == "CE"
-        array.push(lines, line.new(start_t, avg_val, start_t+1, avg_val, xloc=xloc.bar_time, extend=extend.right, color=line_col, style=f_get_line_style(line_style), width=line_w))
-    else if lines_type == "Quadrant"
-        array.push(lines, line.new(start_t, btm_val+(top_val-btm_val)*0.25, start_t+1, btm_val+(top_val-btm_val)*0.25, xloc=xloc.bar_time, extend=extend.right, color=line_col, style=f_get_line_style(line_style), width=line_w)), array.push(lines, line.new(start_t, avg_val, start_t+1, avg_val, xloc=xloc.bar_time, extend=extend.right, color=line_col, style=f_get_line_style(line_style), width=line_w)), array.push(lines, line.new(start_t, btm_val+(top_val-btm_val)*0.75, start_t+1, btm_val+(top_val-btm_val)*0.75, xloc=xloc.bar_time, extend=extend.right, color=line_col, style=f_get_line_style(line_style), width=line_w))
-    l = txt != "" ? label.new(time, avg_val, txt, xloc=xloc.bar_time, yloc=yloc.price, color=color(na), style=label.style_label_left, textcolor=txt_col, size=f_get_size(txt_size)) : label.new(na, na, "")
-    GapObject.new(top_val, btm_val, avg_val, start_t, b, lines, l)
-
-var ehpda_array = array.new<EhpdaObj>()
-if barstate.isfirst
-    for i = 0 to 5
-        array.push(ehpda_array, EhpdaObj.new(line.new(na,na,na,na,color=#787b86,style=line.style_dashed,extend=extend.none,xloc=xloc.bar_time), label.new(na,na,"",color=color(na),style=label.style_label_left,textcolor=#787b86,size=size.tiny,xloc=xloc.bar_time)))
-
-f_update_ehpda(array<GapObject> gaps) =>
-    if array.size(gaps) > 1
-        avg_arr = array.new<float>()
-        for g in gaps
-            array.push(avg_arr, g.avg_val)
-        idx = array.sort_indices(avg_arr)
-        for i = 0 to array.size(gaps) - 2
-            g1 = array.get(gaps, array.get(idx, i)), g2 = array.get(gaps, array.get(idx, i+1)), ehpda_avg = math.avg(g1.top_val, g2.btm_val), e_obj = array.get(ehpda_array, i)
-            line.set_xy1(e_obj.lvl, g1.start_t, ehpda_avg), line.set_xy2(e_obj.lvl, time, ehpda_avg)
-            label.set_xy(e_obj.lbl, time, ehpda_avg), label.set_text(e_obj.lbl, "EHPDA")
-        if array.size(gaps) - 1 < array.size(ehpda_array)
-            for i = array.size(gaps) - 1 to array.size(ehpda_array) - 1
-                e_obj = array.get(ehpda_array, i)
-                line.set_xy1(e_obj.lvl, na, na), line.set_xy2(e_obj.lvl, na, na), label.set_xy(e_obj.lbl, na, na)
-
+// --- Gap & Anchor Drawing Engine (draws only at barstate.islast on real changes) ---
+bool show_draws = not timeframe.isdwm
 var nwog_gaps = array.new<GapObject>(), var ndog_gaps = array.new<GapObject>(), var rthg_gaps = array.new<GapObject>()
+var ehpda_lvls = array.new<line>(), var ehpda_lbls = array.new<label>()
+var int last_w_t = 0, var int last_d_t = 0, var int last_r_t = 0, var int last_off_t = 0
+var label ny_lbl = label.new(na, na, "", xloc=xloc.bar_time, yloc=yloc.price, color=color(na), style=label.style_label_left, textcolor=#0098ff, size=size.tiny)
 
-f_draw_htf_gaps(float[] tops, float[] btms, int[] tms, bool[] bulls, int count, string lines_type, color col_bull, color col_bear, color border_col, string border_style, int border_w, color line_col, string line_style, int line_w) =>
-    GapObject[] gaps = array.new<GapObject>()
-    if not na(tops) and not na(btms) and not na(tms) and not na(bulls)
-        limit = math.min(count, array.size(tops))
-        if limit > 0
-            for i = 0 to limit - 1
-                gaps.push(f_create_gap(array.get(tops, i), array.get(btms, i), array.get(tms, i), lines_type, array.get(bulls, i) ? col_bull : col_bear, border_col, border_style, border_w, line_col, line_style, line_w, "", color(na), "tiny"))
-    gaps
+f_draw_gaps(GapObject[] out, float[] tops, float[] btms, int[] tms, int max_n, color bg, color bcol, color lcol, int bw, bool is_rth, int off_t) =>
+    for g in out
+        f_del_gap(g)
+    array.clear(out)
+    if not na(tops) and not na(btms) and not na(tms)
+        int n = math.min(max_n, array.size(tops))
+        if n > 0
+            for i = 0 to n - 1
+                float top = array.get(tops, i), float btm = array.get(btms, i), int tm = array.get(tms, i), float avg = math.avg(top, btm)
+                bool hide_box = is_rth and i > 0
+                box bx = box.new(tm, top, tm + 1, btm, xloc=xloc.bar_time, extend=extend.right, bgcolor=hide_box ? color(na) : bg, border_color=(hide_box or bw == 0) ? color(na) : bcol, border_width=bw)
+                line ln = line.new(tm, avg, tm + 1, avg, xloc=xloc.bar_time, extend=extend.right, color=lcol, style=line.style_dashed, width=1)
+                label lb = na
+                if is_rth
+                    int d = dayofweek(tm, "America/New_York")
+                    string ds = d == dayofweek.monday ? "MON" : d == dayofweek.tuesday ? "TUE" : d == dayofweek.wednesday ? "WED" : d == dayofweek.thursday ? "THU" : d == dayofweek.friday ? "FRI" : ""
+                    if ds != ""
+                        lb := label.new(off_t, avg, "RTHG " + ds + "/" + str.format_time(tm, "dd", "America/New_York"), xloc=xloc.bar_time, yloc=yloc.price, color=color(na), style=label.style_label_left, textcolor=c_rthg_t, size=size.tiny)
+                array.push(out, GapObject.new(bx, ln, lb))
 
-if (barstate.islast or timeframe.change("W")) and i_showNwog and show_draws
-    for g in nwog_gaps
-        f_delete_gap(g)
-    array.clear(nwog_gaps)
-    nwog_gaps := f_draw_htf_gaps(w_tops, w_btms, w_tms, w_bulls, 5, "CE", c_nwog, c_nwog, c_nwog, "solid (—)", 1, c_nwog, "dashed (---)", 1)
-
-if (barstate.islast or timeframe.change("D")) and i_showNdog and show_draws
-    for g in ndog_gaps
-        f_delete_gap(g)
-    array.clear(ndog_gaps)
-    ndog_gaps := f_draw_htf_gaps(d_tops, d_btms, d_tms, d_bulls, 5, "CE", c_ndog, c_ndog, c_ndog, "solid (—)", 1, c_ndog, "dashed (---)", 1)
-    f_update_ehpda(ndog_gaps)
-
-if (barstate.islast or timeframe.change("15")) and i_showRthg and show_draws
-    for g in rthg_gaps
-        f_delete_gap(g)
-    array.clear(rthg_gaps)
-    if not na(r_tops) and not na(r_btms) and not na(r_tms)
-        limit = math.min(6, array.size(r_tops))
-        if limit > 0
-            for i = 0 to limit - 1
-                tm = array.get(r_tms, i), d = dayofweek(tm, "America/New_York"), ds = d == dayofweek.monday ? "MON" : d == dayofweek.tuesday ? "TUE" : d == dayofweek.wednesday ? "WED" : d == dayofweek.thursday ? "THU" : d == dayofweek.friday ? "FRI" : ""
-                txt = ds != "" ? "RTHG " + ds + "/" + str.format_time(tm, "dd", "America/New_York") : ""
-                g = f_create_gap(array.get(r_tops, i), array.get(r_btms, i), tm, "CE", c_rthg, c_rthg_border, "solid (—)", 0, c_rthg_line, "dashed (---)", 1, txt, c_rthg_txt, "tiny")
-                if i > 0
-                    box.set_bgcolor(g.b, na), box.set_border_color(g.b, na)
-                array.push(rthg_gaps, g)
-
-// --- Offsets & NY Midnight ---
-var label ny_lbl = label.new(na, na, "", xloc=xloc.bar_time, yloc=yloc.price, color=color(na), style=label.style_label_left)
-if barstate.islast
-    time_offset = time + (i_offset * 60000 * timeframe.multiplier)
-    if array.size(rthg_gaps) > 0
-        for i = 0 to array.size(rthg_gaps) - 1
-            if not na(array.get(rthg_gaps, i).l)
-                label.set_x(array.get(rthg_gaps, i).l, time_offset)
-    if array.size(ndog_gaps) > 1
-        limit = math.min(array.size(ndog_gaps) - 1, array.size(ehpda_array))
-        if limit > 0
-            for i = 0 to limit - 1
-                e_obj = array.get(ehpda_array, i)
-                line.set_x2(e_obj.lvl, time_offset)
-                label.set_x(e_obj.lbl, time_offset)
-    if i_showNy and show_draws
-        label.set_x(ny_lbl, time_offset)
-
-nmid = time("1", '0000-0001:1234567', "America/New_York")
-bool is_new_mid = not na(nmid) and na(nmid[1])
+int nmid = time("1", "0000-0001:1234567", "America/New_York")
 var float openprice = 0.0
-if is_new_mid
+if not na(nmid) and na(nmid[1])
     openprice := open
+    if i_showNy and show_draws
+        line.new(nmid, openprice, nmid + 86400000, openprice, xloc=xloc.bar_time, extend.none, #0064ff, line.style_dotted, 2)
+        label.set_y(ny_lbl, openprice), label.set_text(ny_lbl, "NY Midnight Open | " + str.tostring(math.round_to_mintick(openprice)))
+        if high != low
+            line.new(nmid, high, nmid, low, xloc=xloc.bar_time, extend.both, #00b9d0, line.style_solid, 1)
 
-if i_showNy and show_draws and is_new_mid
-    line.new(nmid, openprice, nmid + 86400000, openprice, xloc.bar_time, extend.none, #0064ff, line.style_dotted, 2)
-    label.set_y(ny_lbl, openprice), label.set_text(ny_lbl, "NY Midnight Open | " + str.tostring(math.round_to_mintick(openprice))), label.set_textcolor(ny_lbl, #0098ff), label.set_size(ny_lbl, size.tiny)
-    vl1 = line.new(nmid, high, nmid, low, xloc.bar_time, extend.both, #00b9d0, line.style_solid, 1)
-    if line.get_y1(vl1) == line.get_y2(vl1)
-        line.delete(vl1)
+if barstate.islast and show_draws
+    int off_t = time + i_offset * timeframe.in_seconds() * 1000
+    int w0 = (not na(w_tms) and array.size(w_tms) > 0) ? array.get(w_tms, 0) : na
+    if i_showNwog and not na(w0) and w0 != last_w_t
+        f_draw_gaps(nwog_gaps, w_tops, w_btms, w_tms, 5, c_nwog, c_nwog, c_nwog, 1, false, off_t)
+        last_w_t := w0
+    int d0 = (not na(d_tms) and array.size(d_tms) > 0) ? array.get(d_tms, 0) : na
+    if i_showNdog and not na(d0) and d0 != last_d_t
+        f_draw_gaps(ndog_gaps, d_tops, d_btms, d_tms, 5, c_ndog, c_ndog, c_ndog, 1, false, off_t)
+        for l in ehpda_lvls
+            line.delete(l)
+        for lb in ehpda_lbls
+            label.delete(lb)
+        array.clear(ehpda_lvls), array.clear(ehpda_lbls)
+        if array.size(ndog_gaps) > 1
+            float[] avgs = array.new<float>()
+            for g in ndog_gaps
+                array.push(avgs, (box.get_top(g.b) + box.get_bottom(g.b)) * 0.5)
+            int[] idx = array.sort_indices(avgs)
+            for i = 0 to array.size(ndog_gaps) - 2
+                GapObject g1 = array.get(ndog_gaps, array.get(idx, i)), GapObject g2 = array.get(ndog_gaps, array.get(idx, i + 1))
+                float e_avg = math.avg(box.get_top(g1.b), box.get_bottom(g2.b))
+                array.push(ehpda_lvls, line.new(line.get_x1(g1.ln), e_avg, off_t, e_avg, xloc=xloc.bar_time, extend=extend.none, color=#787b86, style=line.style_dashed))
+                array.push(ehpda_lbls, label.new(off_t, e_avg, "EHPDA", xloc=xloc.bar_time, yloc=yloc.price, color=color(na), style=label.style_label_left, textcolor=#787b86, size=size.tiny))
+        last_d_t := d0
+    int r0 = (not na(r_tms) and array.size(r_tms) > 0) ? array.get(r_tms, 0) : na
+    if i_showRthg and not na(r0) and r0 != last_r_t
+        f_draw_gaps(rthg_gaps, r_tops, r_btms, r_tms, 6, c_rthg, c_rthg, c_rthg_l, 0, true, off_t)
+        last_r_t := r0
+    if last_off_t != time
+        for g in rthg_gaps
+            if not na(g.lbl)
+                label.set_x(g.lbl, off_t)
+        for l in ehpda_lvls
+            line.set_x2(l, off_t)
+        for lb in ehpda_lbls
+            label.set_x(lb, off_t)
+        if i_showNy
+            label.set_x(ny_lbl, off_t)
+        last_off_t := time
 
-// --- SMA & EMA Polyline Drawing Engine (Infinite history without dots) ---
-sma_out = ta.sma(close, i_smaLen)
-ema_out = ta.ema(close, i_emaLen)
+// --- SMA & EMA Chunked Polyline Engine (O(1) per bar, zero array.shift copies) ---
+float sma_out = ta.sma(close, i_smaLen), float ema_out = ta.ema(close, i_emaLen)
+var sma_ps = PolyStream.new(array.new<chart.point>(), array.new<polyline>(), na)
+var ema_ps = PolyStream.new(array.new<chart.point>(), array.new<polyline>(), na)
 
-var sma_pts = array.new<chart.point>()
-var ema_pts = array.new<chart.point>()
-var sma_polys = array.new<polyline>()
-var ema_polys = array.new<polyline>()
+f_update_poly(PolyStream ps, float val, color col) =>
+    if i_showMas
+        if not na(val)
+            array.push(ps.pts, chart.point.from_time(time, val))
+            if array.size(ps.pts) >= 1000
+                array.push(ps.frozen, polyline.new(ps.pts, curved=false, closed=false, xloc=xloc.bar_time, line_color=col, line_style=line.style_solid, line_width=1))
+                if array.size(ps.frozen) > 25
+                    polyline.delete(array.shift(ps.frozen))
+                chart.point tail = array.get(ps.pts, array.size(ps.pts) - 1)
+                array.clear(ps.pts), array.push(ps.pts, tail)
+        if barstate.islast
+            if not na(ps.live)
+                polyline.delete(ps.live)
+                ps.live := na
+            if array.size(ps.pts) > 1
+                ps.live := polyline.new(ps.pts, curved=false, closed=false, xloc=xloc.bar_time, line_color=col, line_style=line.style_solid, line_width=1)
 
-// Global function for drawing polylines seamlessly across arrays
-f_draw_poly(array<chart.point> pts, color col, array<polyline> poly_arr) =>
-    if pts.size() > 1
-        int chunk_size = 9000
-        int n_chunks = int(math.ceil(pts.size() / chunk_size))
-        if n_chunks > 0
-            for i = 0 to n_chunks - 1
-                int start_idx = i * chunk_size
-                int end_idx = math.min((i + 1) * chunk_size, pts.size() - 1)
-                if end_idx > start_idx
-                    poly_arr.push(polyline.new(pts.slice(start_idx, end_idx + 1), curved=false, closed=false, xloc=xloc.bar_time, line_color=col, line_style=line.style_solid, line_width=1))
-
-if i_showMas
-    if not na(sma_out)
-        sma_pts.push(chart.point.from_time(time, sma_out))
-        if sma_pts.size() > 25000 // Safely stores up to ~17 continuous days on 1min chart
-            sma_pts.shift()
-    if not na(ema_out)
-        ema_pts.push(chart.point.from_time(time, ema_out))
-        if ema_pts.size() > 25000
-            ema_pts.shift()
-
-if barstate.islast and i_showMas
-    // Clear out the previous frame's polylines
-    for p in sma_polys
-        polyline.delete(p)
-    sma_polys.clear()
-    for p in ema_polys
-        polyline.delete(p)
-    ema_polys.clear()
-
-    f_draw_poly(sma_pts, i_smaColor, sma_polys)
-    f_draw_poly(ema_pts, i_emaColor, ema_polys)
-
-// Bring back the Price Scale labels using ghost plots!
+f_update_poly(sma_ps, sma_out, i_smaColor)
+f_update_poly(ema_ps, ema_out, i_emaColor)
 plot(i_showMas ? sma_out : na, title="SMA", color=i_smaColor, display=display.price_scale)
 plot(i_showMas ? ema_out : na, title="EMA", color=i_emaColor, display=display.price_scale)
 
-// --- Market Sentiment Banner Engine ---
+// --- Market Sentiment Banner ---
 var table bias_tbl = table.new(position.top_right, 1, 1, bgcolor=color(na), border_width=0)
 
-// Safely extracts the most recent gap's 50% CE while guarding against na HTF arrays on bar 0.
-f_get_latest_ce(float[] tops, float[] btms) =>
+f_latest_ce(float[] tops, float[] btms) =>
     float ce = na
     if not na(tops) and not na(btms)
         if array.size(tops) > 0 and array.size(btms) > 0
             ce := math.avg(array.get(tops, 0), array.get(btms, 0))
     ce
 
-// Evaluates one sentiment factor vs current close: [score delta, active flag, bull flag, tooltip line].
-f_eval_factor(float lvl, string label_str, string suffix) =>
+f_score(float lvl, string lbl, string sfx) =>
     if not na(lvl)
-        bool is_b = close >= lvl
-        [is_b ? 1 : -1, 1, is_b ? 1 : 0, "• " + label_str + " (" + str.tostring(math.round_to_mintick(lvl)) + "): " + (is_b ? "Bullish" : "Bearish") + suffix]
+        bool b = close >= lvl
+        [b ? 1 : -1, 1, b ? 1 : 0, barstate.islast ? ("• " + lbl + " (" + str.tostring(math.round_to_mintick(lvl)) + "): " + (b ? "Bullish" : "Bearish") + sfx + "\n") : ""]
     else
         [0, 0, 0, ""]
 
-f_append_line(string acc, string line_str) =>
-    line_str != "" ? acc + line_str + "\n" : acc
+float ny_mid_val = openprice > 0 ? openprice : ny_15m
+string x_info = (not na(h1_ema) and not na(h1_sma)) ? (h1_ema >= h1_sma ? " (Golden)" : " (Death)") : ""
+[s_1d, ok_1d, b_1d, t_1d] = f_score(d_ema20, "1D 20 EMA", "")
+[s_he, ok_he, b_he, t_he] = f_score(h1_ema, "1H " + str.tostring(i_emaLen) + " EMA", "")
+[s_hs, ok_hs, b_hs, t_hs] = f_score(h1_sma, "1H " + str.tostring(i_smaLen) + " SMA", x_info)
+[s_15, ok_15, b_15, t_15] = f_score(m15_ema, "15m 20 EMA", "")
+[s_6p, ok_6p, b_6p, t_6p] = f_score(d_open, "Globex 6PM", "")
+[s_ny, ok_ny, b_ny, t_ny] = f_score(ny_mid_val, "NY Midnight", "")
+[s_nw, ok_nw, b_nw, t_nw] = f_score(f_latest_ce(w_tops, w_btms), "Active NWOG", "")
+[s_nd, ok_nd, b_nd, t_nd] = f_score(f_latest_ce(d_tops, d_btms), "Active NDOG", "")
 
-float active_nwog_ce = f_get_latest_ce(w_tops, w_btms)
-float active_ndog_ce = f_get_latest_ce(d_tops, d_btms)
-float ny_mid_val     = openprice > 0 ? openprice : ny_mid_15m
-
-// Timeframe Alignment (3 HTF trend gauges + 15m tactical momentum)
-string cross_info = (not na(h1_ema) and not na(h1_sma)) ? (h1_ema >= h1_sma ? " (Golden)" : " (Death)") : ""
-[s_1d,     ok_1d,     b_1d,     tip_1d]     = f_eval_factor(d_ema20, "1D 20 EMA", "")
-[s_1h_ema, ok_1h_ema, b_1h_ema, tip_1h_ema] = f_eval_factor(h1_ema, "1H " + str.tostring(i_emaLen) + " EMA", "")
-[s_1h_sma, ok_1h_sma, b_1h_sma, tip_1h_sma] = f_eval_factor(h1_sma, "1H " + str.tostring(i_smaLen) + " SMA", cross_info)
-[s_15m,    ok_15m,    b_15m,    tip_15m]    = f_eval_factor(m15_ema, "15m 20 EMA", "")
-
-// ICT Anchors (Globex 6PM, NY Midnight, Active NWOG CE, Active NDOG CE)
-[s_6pm,  ok_6pm,  b_6pm,  tip_6pm]  = f_eval_factor(d_open, "Globex 6PM", "")
-[s_ny,   ok_ny,   b_ny,   tip_ny]   = f_eval_factor(ny_mid_val, "NY Midnight", "")
-[s_nwog, ok_nwog, b_nwog, tip_nwog] = f_eval_factor(active_nwog_ce, "Active NWOG", "")
-[s_ndog, ok_ndog, b_ndog, tip_ndog] = f_eval_factor(active_ndog_ce, "Active NDOG", "")
-
-int htf_score     = s_1d + s_1h_ema + s_1h_sma
-int htf_active    = ok_1d + ok_1h_ema + ok_1h_sma
-int tf_bulls      = b_1d + b_1h_ema + b_1h_sma + b_15m
-int tf_active     = ok_1d + ok_1h_ema + ok_1h_sma + ok_15m
-int tf_bears      = tf_active - tf_bulls
-
-int ict_bulls     = b_6pm + b_ny + b_nwog + b_ndog
-int ict_active    = ok_6pm + ok_ny + ok_nwog + ok_ndog
-int ict_bears     = ict_active - ict_bulls
-
-int bias_score    = s_1d + s_1h_ema + s_1h_sma + s_15m + s_6pm + s_ny + s_nwog + s_ndog
-int total_factors = tf_active + ict_active
-int total_bulls   = tf_bulls + ict_bulls
-int total_bears   = tf_bears + ict_bears
+int htf_s = s_1d + s_he + s_hs, int htf_n = ok_1d + ok_he + ok_hs
+int tf_b  = b_1d + b_he + b_hs + b_15, int tf_n = ok_1d + ok_he + ok_hs + ok_15, int tf_r = tf_n - tf_b
+int ic_b  = b_6p + b_ny + b_nw + b_nd, int ic_n = ok_6p + ok_ny + ok_nw + ok_nd, int ic_r = ic_n - ic_b
+int bias_score = s_1d + s_he + s_hs + s_15 + s_6p + s_ny + s_nw + s_nd
+int tot_n = tf_n + ic_n, int tot_b = tf_b + ic_b, int tot_r = tf_r + ic_r
 
 if barstate.islast
     table.clear(bias_tbl, 0, 0, 0, 0)
-
-    if i_showBias and total_factors > 0
-        int strong_thresh = math.max(2, total_factors - 2)
-        int mod_thresh    = math.max(2, total_factors - 4)
-
-        string b_text = "NEUTRAL"
-        color  b_color = #5d606b
-        if bias_score >= strong_thresh
-            b_text  := "STRONG BULL"
-            b_color := #089981
-        else if bias_score >= mod_thresh
-            b_text  := "BULLISH"
-            b_color := #089981
+    if i_showBias and tot_n > 0
+        int hi = math.max(2, tot_n - 2), int mid = math.max(2, tot_n - 4)
+        string lbl = "NEUTRAL", color col = #5d606b
+        if bias_score >= hi
+            lbl := "STRONG BULL", col := #089981
+        else if bias_score >= mid
+            lbl := "BULLISH", col := #089981
         else if bias_score > 0
-            b_text  := "LEAN BULL"
-            b_color := #496e62
-        else if bias_score <= -strong_thresh
-            b_text  := "STRONG BEAR"
-            b_color := #f23645
-        else if bias_score <= -mod_thresh
-            b_text  := "BEARISH"
-            b_color := #f23645
+            lbl := "LEAN BULL", col := #496e62
+        else if bias_score <= -hi
+            lbl := "STRONG BEAR", col := #f23645
+        else if bias_score <= -mid
+            lbl := "BEARISH", col := #f23645
         else if bias_score < 0
-            b_text  := "LEAN BEAR"
-            b_color := #8a4a52
+            lbl := "LEAN BEAR", col := #8a4a52
+        string sc = (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/" + str.tostring(tot_n)
+        float sep = not na(m15_atr) ? m15_atr * 0.25 : 0.0
+        bool has_m = not na(m15_ema) and not na(ny_mid_val)
+        string sn = "⚖️ Normal: Mixed conditions. Standard mean-reversion rules apply."
+        if bias_score >= hi
+            sn := "🟢 Strong bullish run (" + sc + "). Avoid heavy shorts!"
+        else if bias_score <= -hi
+            sn := "🔴 Strong bearish run (" + sc + "). Avoid heavy longs!"
+        else if has_m and close < m15_ema and close >= ny_mid_val and (m15_ema - ny_mid_val) >= sep
+            sn := "🔴 Prime Short: 15m momentum crack above midnight open."
+        else if has_m and close > m15_ema and close <= ny_mid_val and (ny_mid_val - m15_ema) >= sep
+            sn := "🟢 Prime Long: 15m momentum shift below midnight open."
+        else if htf_n >= 2 and htf_s < 0 and bias_score > 0
+            sn := "⚠️ Counter-Trend Bounce: Intraday bullish vs HTF downtrend. Watch resistance!"
+        else if htf_n >= 2 and htf_s > 0 and bias_score < 0
+            sn := "⚠️ Counter-Trend Pullback: Intraday bearish vs HTF uptrend. Watch support!"
+        string tip = "─── MARKET SENTIMENT ───\nVerdict: " + lbl + " (" + sc + " | " + str.tostring(tot_b) + " Bull / " + str.tostring(tot_r) + " Bear)\n──────────────────\nTIMEFRAME ALIGNMENT (" + str.tostring(tf_b) + " Bull / " + str.tostring(tf_r) + " Bear):\n" + t_1d + t_he + t_hs + t_15 + "──────────────────\nICT ANCHORS (" + str.tostring(ic_b) + " Bull / " + str.tostring(ic_r) + " Bear):\n" + t_6p + t_ny + t_nw + t_nd + "──────────────────\nSAFETY SWITCH:\n" + sn
+        table.cell(bias_tbl, 0, 0, lbl + " (" + sc + ")", text_color=color.white, text_size=size.normal, bgcolor=col, tooltip=tip)
 
-        string score_str  = (bias_score > 0 ? "+" : "") + str.tostring(bias_score) + "/" + str.tostring(total_factors)
-        string pill_title = b_text + " (" + score_str + ")"
-
-        // Safety Switch priority: extreme trend -> tactical Midnight setup -> HTF conflict warning -> normal
-        bool has_midnight = not na(m15_ema) and not na(ny_mid_val)
-        float min_sep     = not na(m15_atr) ? m15_atr * 0.25 : 0.0
-        string safety_note = "⚖️ Normal: Mixed conditions. Standard mean-reversion rules apply."
-        if bias_score >= strong_thresh
-            safety_note := "🟢 Strong bullish run (" + score_str + "). Avoid heavy shorts!"
-        else if bias_score <= -strong_thresh
-            safety_note := "🔴 Strong bearish run (" + score_str + "). Avoid heavy longs!"
-        else if has_midnight and close < m15_ema and close >= ny_mid_val and (m15_ema - ny_mid_val) >= min_sep
-            safety_note := "🔴 Prime Short: 15m momentum crack above midnight open."
-        else if has_midnight and close > m15_ema and close <= ny_mid_val and (ny_mid_val - m15_ema) >= min_sep
-            safety_note := "🟢 Prime Long: 15m momentum shift below midnight open."
-        else if htf_active >= 2 and htf_score < 0 and bias_score > 0
-            safety_note := "⚠️ Counter-Trend Bounce: Intraday bullish vs HTF downtrend. Watch resistance!"
-        else if htf_active >= 2 and htf_score > 0 and bias_score < 0
-            safety_note := "⚠️ Counter-Trend Pullback: Intraday bearish vs HTF uptrend. Watch support!"
-
-        string b_tip = "─── MARKET SENTIMENT ───\n"
-        b_tip += "Verdict: " + b_text + " (" + score_str + " | " + str.tostring(total_bulls) + " Bull / " + str.tostring(total_bears) + " Bear)\n"
-        b_tip += "──────────────────\n"
-        b_tip += "TIMEFRAME ALIGNMENT (" + str.tostring(tf_bulls) + " Bull / " + str.tostring(tf_bears) + " Bear):\n"
-        b_tip := f_append_line(b_tip, tip_1d)
-        b_tip := f_append_line(b_tip, tip_1h_ema)
-        b_tip := f_append_line(b_tip, tip_1h_sma)
-        b_tip := f_append_line(b_tip, tip_15m)
-        b_tip += "──────────────────\n"
-        b_tip += "ICT ANCHORS (" + str.tostring(ict_bulls) + " Bull / " + str.tostring(ict_bears) + " Bear):\n"
-        b_tip := f_append_line(b_tip, tip_6pm)
-        b_tip := f_append_line(b_tip, tip_ny)
-        b_tip := f_append_line(b_tip, tip_nwog)
-        b_tip := f_append_line(b_tip, tip_ndog)
-        b_tip += "──────────────────\n"
-        b_tip += "SAFETY SWITCH:\n"
-        b_tip += safety_note
-
-        table.cell(bias_tbl, 0, 0, pill_title, text_color=color.white, text_size=size.normal, bgcolor=b_color, tooltip=b_tip)
-
-// Output to Data Window for Mobile inspection without chart clutter
 plot(bias_score, title="Market Sentiment Score", display=display.data_window)
-
